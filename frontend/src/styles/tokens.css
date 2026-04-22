@@ -1,0 +1,41 @@
+/* Telegram-like theme tokens — light default; .dark overrides */
+
+:root {
+  color-scheme: light dark;
+  --tg-accent: #3390ec;
+  --tg-accent-hover: #2b7fd4;
+  --tg-bg: #ffffff;
+  --tg-sidebar: #f0f2f5;
+  --tg-panel: #ffffff;
+  --tg-border: #e4e8ed;
+  --tg-text: #0f172a;
+  --tg-muted: #475569;
+  --tg-bubble-in: #ffffff;
+  --tg-bubble-out: #e1f2ff;
+  --tg-header-pattern: #d1dae4;
+}
+
+.dark {
+  color-scheme: dark;
+  --tg-accent: #3390ec;
+  --tg-accent-hover: #4a9ef0;
+  --tg-bg: #0e1621;
+  --tg-sidebar: #17212b;
+  --tg-panel: #0e1621;
+  --tg-border: #2b5278;
+  --tg-text: #e7ecf3;
+  --tg-muted: #8b9cb3;
+  --tg-bubble-in: #182533;
+  --tg-bubble-out: #2b5278;
+  --tg-header-pattern: #1a2733;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
