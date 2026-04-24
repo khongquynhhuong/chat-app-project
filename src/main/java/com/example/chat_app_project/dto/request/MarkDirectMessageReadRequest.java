@@ -1,7 +1,8 @@
 package com.example.chat_app_project.dto.request;
 
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 import java.util.UUID;
@@ -9,9 +10,9 @@ import java.util.UUID;
 @Data
 public class MarkDirectMessageReadRequest {
 
-    @NotNull
-    @Positive
-    private Long peerUserId;
+    @NotBlank
+    @Size(max = 100)
+    private String peerUsername;
 
     @NotNull
     private UUID messageId;

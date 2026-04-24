@@ -5,9 +5,9 @@ import com.example.chat_app_project.dto.response.DirectMessageResponse;
 import com.example.chat_app_project.dto.response.OpenDirectChatResponse;
 import com.example.chat_app_project.service.DirectMessageService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -34,20 +34,20 @@ public class DirectMessageController {
     @GetMapping("/conversation")
     public ResponseEntity<OpenDirectChatResponse> openConversation(
             @AuthenticationPrincipal UserDetails principal,
-            @RequestParam @Positive Long peerUserId
+            @RequestParam @NotBlank String peerUsername
     ) {
-        return ResponseEntity.ok(directMessageService.openConversation(principal.getUsername(), peerUserId));
+        return ResponseEntity.ok(directMessageService.openConversation(principal.getUsername(), peerUsername));
     }
 
     @GetMapping("/messages")
     public ResponseEntity<List<DirectMessageResponse>> list(
             @AuthenticationPrincipal UserDetails principal,
-            @RequestParam @Positive Long peerUserId,
+            @RequestParam @NotBlank String peerUsername,
             @RequestParam(defaultValue = "20") @Min(1) @Max(100) int limit,
             @RequestParam(required = false) UUID beforeMessageId
     ) {
         return ResponseEntity.ok(
-                directMessageService.listMessages(principal.getUsername(), peerUserId, limit, beforeMessageId)
+                directMessageService.listMessages(principal.getUsername(), peerUsername, limit, beforeMessageId)
         );
     }
 

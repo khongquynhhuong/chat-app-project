@@ -4,7 +4,7 @@
 /**
  * @typedef {Object} ChatMessage
  * @property {string} id
- * @property {number} peerUserId
+ * @property {string} peerUsername
  * @property {string} content
  * @property {string} sentAt ISO string
  * @property {MessageDirection} direction
@@ -13,7 +13,7 @@
 
 /**
  * @typedef {Object} ConversationPreview
- * @property {number} peerUserId
+ * @property {string} peerUsername
  * @property {string} title
  * @property {string} [lastPreview]
  * @property {string} [lastAt]
@@ -27,33 +27,32 @@ export function newClientMessageId() {
 /**
  * Normalize incoming DM payload from backend (adjust field names to match your Java DTO).
  * @param {Record<string, unknown>} payload
- * @param {string} currentUserId
- * @returns {{ peerUserId: number, content: string, sentAt: string, serverId: string | null }}
+ * @param {string} currentUsername
+ * @returns {{ peerUsername: string, content: string, sentAt: string, serverId: string | null }}
  */
-export function normalizeIncomingDm(payload, currentUserId) {
+export function normalizeIncomingDm(payload, currentUsername) {
   if (!payload || typeof payload !== 'object') {
     return {
-      peerUserId: 0,
+      peerUsername: '',
       content: String(payload),
       sentAt: new Date().toISOString(),
       serverId: null,
     };
   }
 
-  const selfId = Number(currentUserId);
-  const sender =
-    num(payload.senderId) ??
-    num(payload.fromUserId) ??
-    num(payload.senderUserId);
-  const receiver =
-    num(payload.receiverId) ??
-    num(payload.toUserId) ??
-    num(payload.peerUserId);
-
-  let peerUserId = 0;
-  if (sender && sender !== selfId) peerUserId = sender;
-  else if (receiver && receiver !== selfId) peerUserId = receiver;
-  else peerUserId = num(payload.peerUserId) ?? num(payload.chatWith) ?? 0;
+  const senderUsername =
+    str(payload.senderUsername) ??
+    str(payload.fromUsername) ??
+    str(payload.sender) ??
+    '';
+  const trimmedSender = normalizeUsername(senderUsername);
+  const me = normalizeUsername(currentUsername);
+  const fallbackPeer =
+    normalizeUsername(str(payload.peerUsername)) ||
+    normalizeUsername(str(payload.chatWith)) ||
+    '';
+  const peerUsername =
+    trimmedSender && trimmedSender !== me ? trimmedSender : fallbackPeer;
 
   const content =
     str(payload.content) ??
@@ -75,28 +74,28 @@ export function normalizeIncomingDm(payload, currentUserId) {
         ? String(payload.messageId)
         : null;
 
-  return { peerUserId, content, sentAt, serverId };
+  return { peerUsername, content, sentAt, serverId };
 }
 
 /**
  * @param {Record<string, unknown>} payload
- * @returns {{ peerUserId: number, clientMessageId: string | null, serverId: string | null, sentAt: string | null }}
+ * @returns {{ peerUsername: string, clientMessageId: string | null, serverId: string | null, sentAt: string | null }}
  */
 export function normalizeSentAck(payload) {
   if (!payload || typeof payload !== 'object') {
     return {
-      peerUserId: 0,
+      peerUsername: '',
       clientMessageId: null,
       serverId: null,
       sentAt: null,
     };
   }
 
-  const peerUserId =
-    num(payload.peerUserId) ??
-    num(payload.receiverId) ??
-    num(payload.toUserId) ??
-    0;
+  const peerUsername =
+    normalizeUsername(str(payload.peerUsername)) ||
+    normalizeUsername(str(payload.toUsername)) ||
+    normalizeUsername(str(payload.receiverUsername)) ||
+    '';
 
   const clientMessageId =
     str(payload.clientMessageId) ?? str(payload.clientId) ?? null;
@@ -111,16 +110,15 @@ export function normalizeSentAck(payload) {
   const sentAt =
     str(payload.createdAt) ?? str(payload.sentAt) ?? null;
 
-  return { peerUserId, clientMessageId, serverId, sentAt };
-}
-
-function num(v) {
-  if (v == null || v === '') return null;
-  const n = Number(v);
-  return Number.isFinite(n) ? n : null;
+  return { peerUsername, clientMessageId, serverId, sentAt };
 }
 
 function str(v) {
   if (v == null) return null;
   return typeof v === 'string' ? v : String(v);
+}
+
+function normalizeUsername(value) {
+  if (!value) return '';
+  return value.trim();
 }

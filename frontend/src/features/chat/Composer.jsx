@@ -1,15 +1,15 @@
 import { useCallback, useState } from 'react';
 import { Send } from 'lucide-react';
 
-export function Composer({ peerUserId, disabled, onSend }) {
+export function Composer({ peerUsername, disabled, onSend }) {
   const [text, setText] = useState('');
 
   const submit = useCallback(() => {
     const t = text.trim();
-    if (!t || !peerUserId || disabled) return;
-    onSend(peerUserId, t);
+    if (!t || !peerUsername || disabled) return;
+    onSend(peerUsername, t);
     setText('');
-  }, [text, peerUserId, disabled, onSend]);
+  }, [text, peerUsername, disabled, onSend]);
 
   const onKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -30,16 +30,16 @@ export function Composer({ peerUserId, disabled, onSend }) {
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={onKeyDown}
-          disabled={disabled || !peerUserId}
+          disabled={disabled || !peerUsername}
           placeholder={
-            peerUserId ? 'Nhập tin nhắn…' : 'Chọn cuộc trò chuyện hoặc thêm chat'
+            peerUsername ? 'Nhập tin nhắn…' : 'Chọn cuộc trò chuyện hoặc thêm chat'
           }
           className="max-h-32 min-h-[2.75rem] flex-1 resize-y rounded-2xl border border-tg-border bg-tg-sidebar px-4 py-2.5 text-sm text-tg-text placeholder:text-tg-muted/80 focus:border-tg-accent focus:outline-none focus:ring-2 focus:ring-tg-accent/25 disabled:cursor-not-allowed disabled:opacity-50"
         />
         <button
           type="button"
           onClick={submit}
-          disabled={disabled || !peerUserId || !text.trim()}
+          disabled={disabled || !peerUsername || !text.trim()}
           className="inline-flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full bg-tg-accent text-white transition-colors duration-200 hover:bg-tg-accent-hover focus:outline-none focus:ring-2 focus:ring-tg-accent/40 disabled:cursor-not-allowed disabled:opacity-50"
           aria-label="Gửi tin nhắn"
         >

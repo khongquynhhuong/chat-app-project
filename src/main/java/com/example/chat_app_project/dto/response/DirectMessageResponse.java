@@ -14,6 +14,7 @@ public class DirectMessageResponse {
     private UUID conversationId;
     private UUID messageId;
     private Long senderId;
+    private String senderUsername;
     private String content;
     private int messageType;
     private Instant createdAt;

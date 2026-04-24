@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import {
   LogOut,
-  MessageCirclePlus,
   Moon,
   Monitor,
   Search,
@@ -12,7 +11,7 @@ import { useTheme } from '../../context/ThemeContext.jsx';
 export function ChatSidebar({
   user,
   peerList,
-  activePeerId,
+  activePeerUsername,
   onSelectPeer,
   onOpenNewChat,
   onLogout,
@@ -20,8 +19,7 @@ export function ChatSidebar({
   onDismissBanner,
 }) {
   const { theme, setTheme } = useTheme();
-  const [newPeerId, setNewPeerId] = useState('');
-  const [showAdd, setShowAdd] = useState(false);
+  const [searchText, setSearchText] = useState('');
 
   const cycleTheme = () => {
     const order = ['system', 'light', 'dark'];
@@ -38,13 +36,18 @@ export function ChatSidebar({
       <Monitor className="h-5 w-5" />
     );
 
-  const openNew = () => {
-    const id = Number(newPeerId);
-    if (!Number.isFinite(id) || id < 1) return;
-    onOpenNewChat(id);
-    setNewPeerId('');
-    setShowAdd(false);
+  const openFromSearch = () => {
+    const username = searchText.trim();
+    if (!username) return;
+    onOpenNewChat(username);
+    setSearchText('');
   };
+
+  const filteredPeers = peerList.filter((p) => {
+    const q = searchText.trim().toLowerCase();
+    if (!q) return true;
+    return p.peerUsername.toLowerCase().includes(q);
+  });
 
   return (
     <aside className="flex h-full min-h-0 w-full flex-col border-r border-tg-border bg-tg-sidebar md:w-80 md:min-w-[18rem]">
@@ -88,77 +91,57 @@ export function ChatSidebar({
       )}
 
       <div className="flex shrink-0 items-center gap-2 border-b border-tg-border p-2">
+        <label htmlFor="peer-search" className="sr-only">
+          Tìm hoặc mở chat theo username
+        </label>
         <div className="relative flex-1">
           <Search
             className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-tg-muted"
             aria-hidden
           />
           <input
+            id="peer-search"
             type="search"
-            readOnly
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                openFromSearch();
+              }
+            }}
             placeholder="Tìm kiếm"
-            className="w-full cursor-not-allowed rounded-lg border border-tg-border bg-tg-panel py-2 pl-9 pr-3 text-sm text-tg-muted"
-            aria-label="Tìm kiếm"
+            className="w-full rounded-lg border border-tg-border bg-tg-panel py-2 pl-9 pr-3 text-sm text-tg-text placeholder:text-tg-muted focus:border-tg-accent focus:outline-none focus:ring-2 focus:ring-tg-accent/25"
+            aria-label="Tìm kiếm người dùng"
           />
         </div>
-        <button
-          type="button"
-          onClick={() => setShowAdd((v) => !v)}
-          className="inline-flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full bg-tg-accent text-white transition-colors hover:bg-tg-accent-hover"
-          aria-label="Thêm cuộc trò chuyện"
-          title="Chat mới theo userId"
-        >
-          <MessageCirclePlus className="h-5 w-5" />
-        </button>
       </div>
-
-      {showAdd && (
-        <div className="flex shrink-0 gap-2 border-b border-tg-border p-2">
-          <label htmlFor="new-peer-id" className="sr-only">
-            ID người nhận
-          </label>
-          <input
-            id="new-peer-id"
-            type="number"
-            min={1}
-            value={newPeerId}
-            onChange={(e) => setNewPeerId(e.target.value)}
-            placeholder="Peer userId"
-            className="min-w-0 flex-1 rounded-lg border border-tg-border bg-tg-panel px-3 py-2 text-sm text-tg-text focus:border-tg-accent focus:outline-none focus:ring-2 focus:ring-tg-accent/25"
-          />
-          <button
-            type="button"
-            onClick={openNew}
-            className="cursor-pointer rounded-lg bg-tg-accent px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-tg-accent-hover"
-          >
-            Mở
-          </button>
-        </div>
-      )}
 
       <nav
         className="flex-1 overflow-y-auto"
         aria-label="Danh sách trò chuyện"
       >
-        {peerList.length === 0 ? (
+        {filteredPeers.length === 0 ? (
           <p className="p-4 text-center text-sm text-tg-muted">
-            Chưa có cuộc trò chuyện. Nhấn + và nhập userId để bắt đầu.
+            {searchText.trim()
+              ? ''
+              : 'Chưa có cuộc trò chuyện. Nhập username để bắt đầu.'}
           </p>
         ) : (
           <ul className="divide-y divide-tg-border/50">
-            {peerList.map((p) => {
-              const active = activePeerId === p.peerUserId;
+            {filteredPeers.map((p) => {
+              const active = activePeerUsername === p.peerUsername;
               return (
-                <li key={p.peerUserId}>
+                <li key={p.peerUsername}>
                   <button
                     type="button"
-                    onClick={() => onSelectPeer(p.peerUserId)}
+                    onClick={() => onSelectPeer(p.peerUsername)}
                     className={`flex w-full cursor-pointer items-start gap-3 px-3 py-3 text-left transition-colors duration-200 hover:bg-tg-border/30 ${
                       active ? 'bg-tg-accent/10' : ''
                     }`}
                   >
                     <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-tg-accent/15 text-sm font-semibold text-tg-accent">
-                      {String(p.peerUserId).slice(0, 2)}
+                      {String(p.peerUsername).slice(0, 2).toUpperCase()}
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-baseline justify-between gap-2">

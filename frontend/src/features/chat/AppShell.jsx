@@ -8,7 +8,7 @@ import { Composer } from './Composer.jsx';
 export function AppShell({ user, onLogout }) {
   const {
     peerList,
-    activePeerId,
+    activePeerUsername,
     activeMessages,
     selectPeer,
     openChatWithPeer,
@@ -21,10 +21,10 @@ export function AppShell({ user, onLogout }) {
 
   const [mobilePanel, setMobilePanel] = useState('list');
 
-  const activePeer = peerList.find((p) => p.peerUserId === activePeerId);
+  const activePeer = peerList.find((p) => p.peerUsername === activePeerUsername);
   const title = activePeer ? activePeer.title : 'Chọn cuộc trò chuyện';
-  const subtitle = activePeerId
-    ? `userId ${activePeerId}`
+  const subtitle = activePeerUsername
+    ? `@${activePeerUsername}`
     : 'Danh sách bên trái hoặc thêm chat mới';
 
   const onSelectPeerMobile = (id) => {
@@ -47,7 +47,7 @@ export function AppShell({ user, onLogout }) {
         <ChatSidebar
           user={user}
           peerList={peerList}
-          activePeerId={activePeerId}
+          activePeerUsername={activePeerUsername}
           onSelectPeer={onSelectPeerMobile}
           onOpenNewChat={onOpenNewChatMobile}
           onLogout={onLogout}
@@ -72,7 +72,7 @@ export function AppShell({ user, onLogout }) {
         />
         <MessageList messages={activeMessages} peerLabel={title} />
         <Composer
-          peerUserId={activePeerId}
+          peerUsername={activePeerUsername}
           disabled={!connected}
           onSend={sendMessage}
         />

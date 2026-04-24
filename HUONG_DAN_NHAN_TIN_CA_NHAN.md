@@ -31,12 +31,12 @@ Chạy CQL trong `src/main/resources/cassandra/manual/alter-messages-delivery-st
 ### Bước 1 — Xác định cuộc hội thoại
 
 1. Người dùng đã đăng nhập (JWT).
-2. Client biết `peerUserId` (id người đối phương trong `users`).
-3. Gọi `GET /api/dm/conversation?peerUserId=...` để nhận `conversationId` (UUID) và `peerUsername` — dùng hiển thị header chat / cache local.
+2. Client biết `peerUsername` (username người đối phương trong `users`).
+3. Gọi `GET /api/dm/conversation?peerUsername=...` để nhận `conversationId` (UUID) và `peerUsername` — dùng hiển thị header chat / cache local.
 
 ### Bước 2 — Gửi tin (WebSocket STOMP)
 
-1. Client gửi frame tới destination `SEND /app/dm/send` với payload JSON: `peerUserId`, `content`, `messageType` (0 = text).
+1. Client gửi frame tới destination `SEND /app/dm/send` với payload JSON: `peerUsername`, `content`, `messageType` (0 = text).
 2. Server (`DirectMessageWsController`) gọi service xử lý:
    - Tải user hiện tại và peer; cấm gửi cho chính mình.
    - Tính `conversationId = DirectConversationIds.forPair(me, peer)`.
@@ -48,13 +48,13 @@ Chạy CQL trong `src/main/resources/cassandra/manual/alter-messages-delivery-st
 
 ### Bước 3 — Đọc lịch sử (infinite scroll)
 
-1. **Trang đầu**: `GET /api/dm/messages?peerUserId=&limit=20` (không có `beforeMessageId`).
+1. **Trang đầu**: `GET /api/dm/messages?peerUsername=&limit=20` (không có `beforeMessageId`).
 2. Cassandra trả các tin **mới nhất** trong partition (giới hạn `limit`), code sắp xếp lại **cũ → mới** để UI hiển thị.
 3. **Trang sau**: client truyền `beforeMessageId` = `message_id` của tin **cũ nhất** đang hiển thị; server gọi `findMessagesBefore(conversationId, beforeMessageId, limit)` để lấy batch **cũ hơn**.
 
 ### Bước 4 — Đánh dấu đã đọc (Read)
 
-1. Người **nhận** (không phải người gửi) gọi `POST /api/dm/messages/read` với `peerUserId` và `messageId`.
+1. Người **nhận** (không phải người gửi) gọi `POST /api/dm/messages/read` với `peerUsername` và `messageId`.
 2. Server kiểm tra tin thuộc đúng cuộc hội thoại và người gọi không phải sender, rồi cập nhật `delivery_status = READ`.
 
 ### Bước 5 — Delivered (gợi ý mở rộng)
@@ -68,7 +68,7 @@ Chạy CQL trong `src/main/resources/cassandra/manual/alter-messages-delivery-st
 ## 3. Bảo mật
 
 - Mọi endpoint `/api/dm/**` yêu cầu **JWT** (cấu hình chung: `anyRequest().authenticated()`).
-- `conversationId` **không** tin tưởng từ client cho thao tác ghi: server luôn tính lại từ `(user hiện tại, peerUserId)` để tránh giả mạo partition.
+- `conversationId` **không** tin tưởng từ client cho thao tác ghi: server luôn resolve `peerUsername -> userId` rồi tính lại từ `(user hiện tại, peer đã resolve)` để tránh giả mạo partition.
 
 ---
 
@@ -101,7 +101,7 @@ Chạy CQL trong `src/main/resources/cassandra/manual/alter-messages-delivery-st
 ## 6. Ví dụ gọi API (sau khi login)
 
 ```http
-GET /api/dm/conversation?peerUserId=2
+GET /api/dm/conversation?peerUsername=bob
 Authorization: Bearer <access_token>
 ```
 
@@ -110,11 +110,11 @@ STOMP SEND destination: /app/dm/send
 headers:
   Authorization: Bearer <access_token>
 body:
-{"peerUserId":2,"content":"Xin chào","messageType":0}
+{"peerUsername":"bob","content":"Xin chào","messageType":0}
 ```
 
 ```http
-GET /api/dm/messages?peerUserId=2&limit=20
+GET /api/dm/messages?peerUsername=bob&limit=20
 Authorization: Bearer <access_token>
 ```
 
@@ -123,7 +123,7 @@ POST /api/dm/messages/read
 Authorization: Bearer <access_token>
 Content-Type: application/json
 
-{"peerUserId":2,"messageId":"<uuid-của-tin>"}
+{"peerUsername":"bob","messageId":"<uuid-của-tin>"}
 ```
 
 ---
@@ -131,7 +131,7 @@ Content-Type: application/json
 ## 7. Kiểm thử nhanh
 
 1. Tạo hai tài khoản (`/api/auth/register`) và lấy JWT (`/api/auth/login`).
-2. Ghi nhớ `id` của user (từ response hoặc DB) làm `peerUserId`.
+2. Ghi nhớ `username` của đối phương làm `peerUsername`.
 3. User A gửi tin qua STOMP `/app/dm/send`; User B nhận push `/user/queue/dm`; sau đó B có thể gọi GET history và read.
 
 Kết hợp kiểm tra Cassandra: `SELECT * FROM messages LIMIT 10;` trong `cqlsh` (đúng keyspace).
@@ -203,7 +203,7 @@ stomp.activate();
 
 // Khi đã connect: gửi qua WebSocket thay vì REST
 stomp.send('/app/dm/send', {}, JSON.stringify({
-  peerUserId: 2,
+  peerUsername: 'bob',
   content: 'Xin chào',
   messageType: 0
 }));
@@ -228,7 +228,7 @@ Mục tiêu: user **B** mở STOMP trước; user **A** gửi tin qua `SEND /app
 2. **PostgreSQL** phải chạy (user đăng ký/đăng nhập). **Cassandra** phải chạy vì `SEND /app/dm/send` sẽ ghi bảng `messages` (theo `application.properties`).
 3. Cài sẵn trên máy (hoặc dùng CDN trong HTML tạm): `sockjs-client`, `@stomp/stompjs` — hoặc chỉ dùng **curl** cho bước gửi tin + **DevTools** với script tối giản (bên dưới).
 
-#### Bước 1 — Tạo hai tài khoản và lấy `userId`
+#### Bước 1 — Tạo hai tài khoản và ghi lại username
 
 Đăng ký A và B (username khác nhau), ví dụ:
 
@@ -246,9 +246,9 @@ Content-Type: application/json
 {"username":"bob","password":"password2"}
 ```
 
-Ghi lại **`userId`** của từng người. Cách nhanh: sau bước đăng nhập (bước 2), response JSON có trường `userId` (kiểu `AuthResponse`).
+Ghi lại **username** của từng người (ví dụ `alice`, `bob`) để dùng cho `peerUsername`.
 
-#### Bước 2 — Đăng nhập và lưu JWT + userId
+#### Bước 2 — Đăng nhập và lưu JWT
 
 **Alice:**
 
@@ -259,7 +259,7 @@ Content-Type: application/json
 {"username":"alice","password":"password1"}
 ```
 
-Lưu `accessToken` → `TOKEN_A`, `userId` → `ID_A`.
+Lưu `accessToken` → `TOKEN_A`.
 
 **Bob:**
 
@@ -270,7 +270,7 @@ Content-Type: application/json
 {"username":"bob","password":"password2"}
 ```
 
-Lưu `accessToken` → `TOKEN_B`, `userId` → `ID_B`.
+Lưu `accessToken` → `TOKEN_B`.
 
 #### Bước 3 — Mở hai “phiên” trình duyệt tách biệt
 
@@ -323,7 +323,7 @@ Trong tab Alice (đã CONNECT), gửi frame:
 
 ```text
 SEND /app/dm/send
-body: {"peerUserId": ID_B, "content":"Xin chào Bob", "messageType":0}
+body: {"peerUsername":"bob", "content":"Xin chào Bob", "messageType":0}
 ```
 
 Trong trang test tích hợp sẵn (`/index.html`), bấm nút **SEND /app/dm/send**.
@@ -332,7 +332,7 @@ Trong trang test tích hợp sẵn (`/index.html`), bấm nút **SEND /app/dm/se
 
 - Trên cửa sổ **Bob**, console phải in một dòng kiểu `NHẬN DM: { ... }` (kênh `/user/queue/dm`).
 - Trên cửa sổ **Alice**, phải có dòng ACK ở `/user/queue/dm.sent`.
-- Nếu cần xác nhận DB, gọi thêm `GET /api/dm/messages?peerUserId=ID_B`.
+- Nếu cần xác nhận DB, gọi thêm `GET /api/dm/messages?peerUsername=bob`.
 
 #### Xử lý sự cố (checklist)
 
@@ -340,7 +340,7 @@ Trong trang test tích hợp sẵn (`/index.html`), bấm nút **SEND /app/dm/se
 |------------|----------------|
 | Console Bob: lỗi ngay khi `activate` / `CONNECT` | Xem log `[STOMP]`; JWT hết hạn hoặc sai → login lại; thử thêm `Authorization` trên CONNECT (đã có trong ví dụ). |
 | `401` khi gọi API REST phụ trợ | `Authorization: Bearer` đúng token user đang gọi; không dùng nhầm token của Bob khi Alice gọi API. |
-| `peerUserId` sai | `peerUserId` phải là **id số trong bảng users** của đối phương (dùng `userId` từ login). |
+| `peerUsername` sai | `peerUsername` phải là username tồn tại trong bảng `users` của đối phương. |
 | Bob không nhận gì, không lỗi STOMP | Server đẩy tới **username** của Bob (`peer.getUsername()`). Username trong JWT phải trùng user Bob trong DB (ví dụ `bob`). |
 | Frontend chạy port khác (vd. 5173) | Trình duyệt chặn SockJS do CORS: cần `@CrossOrigin` hoặc `WebMvcConfigurer` cho origin dev, hoặc proxy Vite trỏ `/ws` về `8080`. |
 | Cassandra tắt | `SEND /app/dm/send` sẽ lỗi và nhận message tại `/user/queue/errors`; bật Cassandra để ghi DB. |
@@ -348,15 +348,15 @@ Trong trang test tích hợp sẵn (`/index.html`), bấm nút **SEND /app/dm/se
 #### Ghi chú
 
 - Kiểm thử “gần như tức thì” phù hợp **cùng máy / LAN**; qua Internet có thêm độ trễ mạng.
-- Nếu chỉ muốn xác nhận DB: sau khi SEND thành công, gọi `GET /api/dm/messages?peerUserId=...`.
+- Nếu chỉ muốn xác nhận DB: sau khi SEND thành công, gọi `GET /api/dm/messages?peerUsername=...`.
 
-### 8.7. Trang test tích hợp sẵn (giao diện đơn giản)
+### 8.7. Frontend React de test nhanh
 
-Project có file **`src/main/resources/static/index.html`**: sau khi chạy backend, mở **`http://localhost:8080/`** (hoặc `/index.html`).
+Project dung frontend React trong thu muc **`frontend/`**: sau khi chay backend, chay `npm run dev` trong `frontend/` va mo **`http://localhost:5173`**.
 
 - **Đăng ký / Đăng nhập** → lưu JWT trong `sessionStorage`.
-- Nhập **Peer user ID** (số `userId` của tab/đối phương).
+- Nhap **peer username** (vi du `bob`).
 - **Kết nối WS** → SockJS + STOMP, subscribe `/user/queue/dm`, `/user/queue/dm.sent`, `/user/queue/errors`.
 - **SEND tin qua STOMP** (`/app/dm/send`); tab đối phương thấy incoming và tab gửi thấy ACK.
 
-Cùng origin với API nên **không cần cấu hình CORS** cho trang này. Hai tab ẩn danh với hai user là đủ để test nhanh.
+Vite dev server da proxy `/api` va `/ws` sang backend nen test 2 tab voi 2 user la du de kiem tra nhanh.

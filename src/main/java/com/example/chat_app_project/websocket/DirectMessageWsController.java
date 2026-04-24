@@ -24,7 +24,7 @@ public class DirectMessageWsController {
     private final DirectMessageNotifier directMessageNotifier;
 
     /**
-     * Client gửi tới /app/dm/send với payload SendDirectMessageRequest.
+     * Client gửi tới /app/dm/send với payload {@code {"peerUsername":"bob","content":"...","messageType":0}}.
      * Server lưu Cassandra rồi push:
      * - /user/{peer}/queue/dm      : tin incoming cho peer
      * - /user/{sender}/queue/dm.sent: ACK cho người gửi

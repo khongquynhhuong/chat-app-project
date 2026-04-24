@@ -10,11 +10,11 @@ import java.util.UUID;
 
 public interface DirectMessageService {
 
-    OpenDirectChatResponse openConversation(String username, long peerUserId);
+    OpenDirectChatResponse openConversation(String username, String peerUsername);
 
     DirectMessageResponse send(String username, SendDirectMessageRequest request);
 
-    List<DirectMessageResponse> listMessages(String username, long peerUserId, int limit, UUID beforeMessageId);
+    List<DirectMessageResponse> listMessages(String username, String peerUsername, int limit, UUID beforeMessageId);
 
     void markRead(String username, MarkDirectMessageReadRequest request);
 }

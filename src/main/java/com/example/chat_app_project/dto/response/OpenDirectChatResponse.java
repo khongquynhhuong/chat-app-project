@@ -9,6 +9,5 @@ import java.util.UUID;
 @AllArgsConstructor
 public class OpenDirectChatResponse {
     private UUID conversationId;
-    private Long peerUserId;
     private String peerUsername;
 }

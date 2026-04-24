@@ -82,7 +82,7 @@ export function AuthScreen({ onLoggedIn, onNotify }) {
           </div>
           <h1 className="text-xl font-semibold text-tg-text">Chat</h1>
           <p className="text-sm text-tg-muted">
-            Đăng nhập để tiếp tục — giao diện kiểu Telegram Web
+            Đăng nhập để tiếp tục
           </p>
         </div>
 
