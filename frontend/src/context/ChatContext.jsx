@@ -131,14 +131,12 @@ function chatReducer(state, action) {
       let targetKey = normalizedPeer ? peerKey(normalizedPeer) : null;
       let targetIndex = -1;
 
-      if (targetKey) {
+      if (targetKey && clientMessageId) {
         const list = state.messages[targetKey] || [];
-        targetIndex = clientMessageId
-          ? list.findIndex((m) => m.id === clientMessageId)
-          : -1;
+        targetIndex = list.findIndex((m) => m.id === clientMessageId);
       }
 
-      if (targetIndex < 0) {
+      if (targetIndex < 0 && clientMessageId) {
         const found = findMessageByClientId(state.messages, clientMessageId);
         if (found) {
           targetKey = found.key;
@@ -146,11 +144,8 @@ function chatReducer(state, action) {
         }
       }
 
-      if (!targetKey) return state;
-      const list = state.messages[targetKey];
-      if (!list?.length) return state;
-
-      if (targetIndex < 0) {
+      if (targetIndex < 0 && targetKey) {
+        const list = state.messages[targetKey] || [];
         for (let i = list.length - 1; i >= 0; i -= 1) {
           if (list[i].direction === 'out' && list[i].status === 'sending') {
             targetIndex = i;
@@ -158,7 +153,22 @@ function chatReducer(state, action) {
           }
         }
       }
-      if (targetIndex < 0) return state;
+
+      if (targetIndex < 0 && state.activePeerUsername) {
+        const k = peerKey(state.activePeerUsername);
+        const list = state.messages[k] || [];
+        for (let i = list.length - 1; i >= 0; i -= 1) {
+          if (list[i].direction === 'out' && list[i].status === 'sending') {
+            targetKey = k;
+            targetIndex = i;
+            break;
+          }
+        }
+      }
+
+      if (!targetKey || targetIndex < 0) return state;
+      const list = state.messages[targetKey];
+      if (!list?.length) return state;
 
       const next = [...list];
       const m = next[targetIndex];
