@@ -30,13 +30,38 @@ public class JwtService {
         return claimsResolver.apply(claims);
     }
 
-    public String generateToken(UserDetails userDetails) {
+    public static final String USER_ID_CLAIM = "uid";
+
+    /**
+     * JWT chứa {@code sub} = username (cho HTTP filter) và claim {@code uid} = user id (cho STOMP principal / routing).
+     */
+    public String generateToken(UserDetails userDetails, Long userId) {
         return Jwts.builder()
                 .subject(userDetails.getUsername())
+                .claim(USER_ID_CLAIM, userId)
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + expirationMs))
                 .signWith(signingKey())
                 .compact();
+    }
+
+    /** Token cũ không có {@code uid} thì trả {@code null}. */
+    public Long extractUserId(String token) {
+        try {
+            Object raw = extractClaim(token, claims -> claims.get(USER_ID_CLAIM));
+            if (raw == null) {
+                return null;
+            }
+            if (raw instanceof Number n) {
+                return n.longValue();
+            }
+            if (raw instanceof String s && !s.isBlank()) {
+                return Long.parseLong(s.trim());
+            }
+        } catch (Exception ignored) {
+            return null;
+        }
+        return null;
     }
 
     public boolean isTokenValid(String token, UserDetails userDetails) {

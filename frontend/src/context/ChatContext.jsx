@@ -11,6 +11,7 @@ import {
   normalizeSentAck,
 } from '../domain/chat.js';
 import { useStompChat } from '../hooks/useStompChat.js';
+import { fetchMessageHistory } from '../services/chatRepository.js';
 
 const ChatContext = createContext(null);
 
@@ -34,6 +35,23 @@ function initialPeer(peerUsername) {
   };
 }
 
+function initialHistory() {
+  return {
+    loading: false,
+    loadingMore: false,
+    hasMore: true,
+    oldestMessageId: null,
+    loaded: false,
+    error: null,
+  };
+}
+
+/**
+ * Tìm kiếm vị trí của một tin nhắn dựa trên Client ID trong cấu trúc dữ liệu Chat.
+ * @param {Object} messagesByPeer - Đối tượng chứa tin nhắn, key là username, value là mảng tin nhắn.
+ * @param {string} clientMessageId - ID tạm thời do phía client tạo ra khi gửi tin nhắn.
+ * @returns {Object|null} Trả về { key, index } nếu tìm thấy, ngược lại trả về null.
+ */
 function findMessageByClientId(messagesByPeer, clientMessageId) {
   if (!clientMessageId) return null;
   for (const [key, list] of Object.entries(messagesByPeer)) {
@@ -189,13 +207,128 @@ function chatReducer(state, action) {
       const list = state.messages[key];
       if (!list) return state;
       const next = list.map((m) =>
-        m.id === id && m.direction === 'out' ? { ...m, status: 'failed' } : m,
+          m.id === id && m.direction === 'out' ? { ...m, status: 'failed' } : m,
       );
       return { ...state, messages: { ...state.messages, [key]: next } };
     }
 
     case 'WS_BANNER':
       return { ...state, wsBanner: action.payload };
+
+    case 'HISTORY_LOAD_START': {
+      const key = peerKey(action.payload.peerUsername);
+      const history = state.historyByPeer[key] || initialHistory();
+      return {
+        ...state,
+        historyByPeer: {
+          ...state.historyByPeer,
+          [key]: { ...history, loading: true, error: null },
+        },
+      };
+    }
+
+    case 'HISTORY_LOAD_SUCCESS': {
+      const { peerUsername, messages, hasMore } = action.payload;
+      const key = peerKey(peerUsername);
+      const history = state.historyByPeer[key] || initialHistory();
+
+      let oldestId = null;
+      if (messages.length > 0) {
+        oldestId = messages[0].id;
+      }
+      return {
+        ...state,
+        messages: {
+          ...state.messages,
+          [key]: messages,
+        },
+        historyByPeer: {
+          ...state.historyByPeer,
+          [key]: {
+            ...history,
+            loading: false,
+            loaded: true,
+            hasMore: hasMore,
+            oldestMessageId: oldestId,
+            error: null,
+          },
+        },
+      };
+    }
+
+    case 'HISTORY_LOAD_ERROR': {
+      const { peerUsername, error } = action.payload;
+      const key = peerKey(peerUsername);
+      const history = state.historyByPeer[key] || initialHistory();
+      return {
+        ...state,
+        historyByPeer: {
+          ...state.historyByPeer,
+          [key]: {
+            ...history,
+            loading: false,
+            error,
+          },
+        },
+      };
+    }
+
+    case 'HISTORY_LOAD_MORE_START': {
+      const key = peerKey(action.payload.peerUsername);
+      const history = state.historyByPeer[key] || initialHistory();
+      return {
+        ...state,
+        historyByPeer: {
+          ...state.historyByPeer,
+          [key]: { ...history, loadingMore: true, error: null },
+        },
+      };
+    }
+
+    case 'HISTORY_LOAD_MORE_SUCCESS': {
+      const { peerUsername, messages, hasMore } = action.payload;
+      const key = peerKey(peerUsername);
+      const history = state.historyByPeer[key] || initialHistory();
+      const currentMessages = state.messages[key] || [];
+      const existingIds = new Set(currentMessages.map((m) => m.id));
+      const filteredNew = messages.filter((m) => !existingIds.has(m.id));
+      const newMessages = [...filteredNew, ...currentMessages];
+
+      let oldestId = history.oldestMessageId;
+      if (filteredNew.length > 0) {
+        oldestId = filteredNew[0].id;
+      }
+      return {
+        ...state,
+        messages: {
+          ...state.messages,
+          [key]: newMessages,
+        },
+        historyByPeer: {
+          ...state.historyByPeer,
+          [key]: {
+            ...history,
+            loadingMore: false,
+            hasMore: hasMore,
+            oldestMessageId: oldestId,
+            error: null,
+          },
+        },
+      };
+    }
+
+    case 'HISTORY_LOAD_MORE_ERROR': {
+      const { peerUsername, error } = action.payload;
+      const key = peerKey(peerUsername);
+      const history = state.historyByPeer[key] || initialHistory();
+      return {
+        ...state,
+        historyByPeer: {
+          ...state.historyByPeer,
+          [key]: { ...history, loadingMore: false, error },
+        },
+      };
+    }
 
     default:
       return state;
@@ -206,6 +339,7 @@ const initialChatState = {
   activePeerUsername: null,
   peers: {},
   messages: {},
+  historyByPeer: {},
   wsBanner: null,
 };
 
@@ -221,6 +355,7 @@ function formatWsErr(payload) {
 }
 
 export function ChatProvider({ authUser, children }) {
+  // Sửa initialState thành initialChatState
   const [state, dispatch] = useReducer(chatReducer, initialChatState);
 
   const username = authUser.username;
@@ -251,45 +386,85 @@ export function ChatProvider({ authUser, children }) {
     dispatch({ type: 'ENSURE_PEER', payload: peerUsername });
   }, []);
 
+  const loadHistory = useCallback(async (peerUsername, { more = false } = {}) => {
+    const key = peerKey(peerUsername);
+    const historyState = state.historyByPeer[key] || initialHistory();
+
+    if (!more) {
+      dispatch({ type: 'HISTORY_LOAD_START', payload: { peerUsername } });
+    } else {
+      dispatch({ type: 'HISTORY_LOAD_MORE_START', payload: { peerUsername } });
+    }
+    try {
+      const messages = await fetchMessageHistory(
+          authUser.token,
+          peerUsername,
+          more ? historyState.oldestMessageId : null,
+          authUser.username
+      );
+      const hasMore = messages.length === 20;
+      if (!more) {
+        dispatch({
+          type: 'HISTORY_LOAD_SUCCESS',
+          payload: { peerUsername, messages, hasMore }
+        });
+      } else {
+        dispatch({
+          type: 'HISTORY_LOAD_MORE_SUCCESS',
+          payload: { peerUsername, messages, hasMore }
+        });
+      }
+    } catch (error) {
+      // Sửa err thành error
+      const errorMsg = error.message || 'Lỗi khi tải lịch sử';
+      if (!more) {
+        dispatch({ type: 'HISTORY_LOAD_ERROR', payload: { peerUsername, error: errorMsg } });
+      } else {
+        dispatch({ type: 'HISTORY_LOAD_MORE_ERROR', payload: { peerUsername, error: errorMsg } });
+      }
+    }
+  }, [authUser.token, authUser.username, state.historyByPeer]);
+
   const openChatWithPeer = useCallback((peerUsername) => {
     dispatch({ type: 'ENSURE_PEER', payload: peerUsername });
     dispatch({ type: 'SELECT_PEER', payload: peerUsername });
-  }, []);
+    loadHistory(peerUsername);
+  }, [loadHistory]);
 
   const sendMessage = useCallback(
-    (peerUsername, content) => {
-      const normalizedPeer = normalizePeerUsername(peerUsername);
-      if (!normalizedPeer) return;
+      (peerUsername, content) => {
+        const normalizedPeer = normalizePeerUsername(peerUsername);
+        if (!normalizedPeer) return;
 
-      const id = newClientMessageId();
-      dispatch({
-        type: 'APPEND_OUT',
-        payload: { peerUsername: normalizedPeer, content, id },
-      });
-      const client = clientRef.current;
-      if (!client?.connected) {
+        const id = newClientMessageId();
         dispatch({
-          type: 'FAIL_MESSAGE',
-          payload: { peerUsername: normalizedPeer, id },
+          type: 'APPEND_OUT',
+          payload: { peerUsername: normalizedPeer, content, id },
         });
-        dispatch({
-          type: 'WS_BANNER',
-          payload: 'WebSocket is not connected',
+        const client = clientRef.current;
+        if (!client?.connected) {
+          dispatch({
+            type: 'FAIL_MESSAGE',
+            payload: { peerUsername: normalizedPeer, id },
+          });
+          dispatch({
+            type: 'WS_BANNER',
+            payload: 'WebSocket is not connected',
+          });
+          return;
+        }
+        client.publish({
+          destination: '/app/dm/send',
+          headers: { 'content-type': 'application/json;charset=UTF-8' },
+          body: JSON.stringify({
+            peerUsername: normalizedPeer,
+            content,
+            messageType: 0,
+            clientMessageId: id,
+          }),
         });
-        return;
-      }
-      client.publish({
-        destination: '/app/dm/send',
-        headers: { 'content-type': 'application/json;charset=UTF-8' },
-        body: JSON.stringify({
-          peerUsername: normalizedPeer,
-          content,
-          messageType: 0,
-          clientMessageId: id,
-        }),
-      });
-    },
-    [clientRef],
+      },
+      [clientRef],
   );
 
   const clearWsBanner = useCallback(() => {
@@ -310,30 +485,31 @@ export function ChatProvider({ authUser, children }) {
   }, [state.activePeerUsername, state.messages]);
 
   const value = useMemo(
-    () => ({
-      ...state,
-      peerList,
-      activeMessages,
-      selectPeer,
-      ensurePeer,
-      openChatWithPeer,
-      sendMessage,
-      connected,
-      lastError,
-      clearWsBanner,
-    }),
-    [
-      state,
-      peerList,
-      activeMessages,
-      selectPeer,
-      ensurePeer,
-      openChatWithPeer,
-      sendMessage,
-      connected,
-      lastError,
-      clearWsBanner,
-    ],
+      () => ({
+        ...state,
+        peerList,
+        activeMessages,
+        loadHistory,
+        selectPeer,
+        ensurePeer,
+        openChatWithPeer,
+        sendMessage,
+        connected,
+        lastError,
+        clearWsBanner,
+      }),
+      [
+        state,
+        peerList,
+        activeMessages,
+        selectPeer,
+        ensurePeer,
+        openChatWithPeer,
+        sendMessage,
+        connected,
+        lastError,
+        clearWsBanner,
+      ],
   );
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;

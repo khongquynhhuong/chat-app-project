@@ -39,7 +39,7 @@ public class AuthServiceImpl implements AuthService {
                 .authorities(user.getRoles().stream().map(Role::getName).toArray(String[]::new))
                 .build();
 
-        String token = jwtService.generateToken(userDetails);
+        String token = jwtService.generateToken(userDetails, user.getId());
         var roleNames = user.getRoles().stream().map(Role::getName).collect(Collectors.toSet());
 
         return new AuthResponse(token, "Bearer", user.getId(), user.getUsername(), roleNames);

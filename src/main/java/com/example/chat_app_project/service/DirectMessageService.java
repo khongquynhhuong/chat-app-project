@@ -12,7 +12,7 @@ public interface DirectMessageService {
 
     OpenDirectChatResponse openConversation(String username, String peerUsername);
 
-    DirectMessageResponse send(String username, SendDirectMessageRequest request);
+    DirectMessageResponse send(Long senderUserId, SendDirectMessageRequest request);
 
     List<DirectMessageResponse> listMessages(String username, String peerUsername, int limit, UUID beforeMessageId);
 

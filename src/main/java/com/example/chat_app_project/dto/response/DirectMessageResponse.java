@@ -19,4 +19,8 @@ public class DirectMessageResponse {
     private int messageType;
     private Instant createdAt;
     private String deliveryStatus;
+    /** Username người nhận (để client khớp cuộc hội thoại khi nhận ACK gửi). */
+    private String peerUsername;
+    /** Echo từ request — khớp bong bóng đang gửi với bản đã lưu. */
+    private String clientMessageId;
 }

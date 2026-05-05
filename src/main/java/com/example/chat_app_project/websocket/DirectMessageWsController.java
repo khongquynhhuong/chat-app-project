@@ -25,18 +25,23 @@ public class DirectMessageWsController {
 
     /**
      * Client gửi tới /app/dm/send với payload {@code {"peerUsername":"bob","content":"...","messageType":0}}.
-     * Server lưu Cassandra rồi push:
-     * - /user/{peer}/queue/dm      : tin incoming cho peer
-     * - /user/{sender}/queue/dm.sent: ACK cho người gửi
+     * {@link Principal#getName()} là chuỗi user id (STOMP). Server lưu Cassandra rồi push:
+     * - /user/{recipientId}/queue/dm
+     * - /user/{senderId}/queue/dm.sent
      */
     @MessageMapping("/dm/send")
     public void send(@Valid @Payload SendDirectMessageRequest request, Principal principal) {
         if (principal == null || principal.getName() == null || principal.getName().isBlank()) {
             throw new RuntimeException("WebSocket chưa xác thực");
         }
-        String senderUsername = principal.getName();
-        DirectMessageResponse sent = directMessageService.send(senderUsername, request);
-        directMessageNotifier.notifySentAck(sent, senderUsername);
+        long senderId;
+        try {
+            senderId = Long.parseLong(principal.getName());
+        } catch (NumberFormatException e) {
+            throw new RuntimeException("Principal STOMP không hợp lệ (cần user id)");
+        }
+        DirectMessageResponse sent = directMessageService.send(senderId, request);
+        directMessageNotifier.notifySentAck(sent, senderId);
     }
 
     @MessageExceptionHandler(RuntimeException.class)

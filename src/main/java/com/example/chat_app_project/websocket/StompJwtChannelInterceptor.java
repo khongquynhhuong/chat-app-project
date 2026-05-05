@@ -1,5 +1,6 @@
 package com.example.chat_app_project.websocket;
 
+import com.example.chat_app_project.repository.UserRepository;
 import com.example.chat_app_project.security.CustomUserDetailsService;
 import com.example.chat_app_project.security.JwtService;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +21,7 @@ import java.util.Map;
 
 /**
  * Xác thực JWT trên lệnh STOMP CONNECT (sau khi client đã có access token từ REST login).
+ * {@code Principal#getName()} = chuỗi user id để khớp {@link org.springframework.messaging.simp.SimpMessagingTemplate#convertAndSendToUser}.
  */
 @Component
 @RequiredArgsConstructor
@@ -27,6 +29,7 @@ public class StompJwtChannelInterceptor implements ChannelInterceptor {
 
     private final JwtService jwtService;
     private final CustomUserDetailsService userDetailsService;
+    private final UserRepository userRepository;
 
     @Override
     public Message<?> preSend(@NonNull Message<?> message, @NonNull MessageChannel channel) {
@@ -45,8 +48,14 @@ public class StompJwtChannelInterceptor implements ChannelInterceptor {
             if (!jwtService.isTokenValid(token, user)) {
                 throw new MessagingException("JWT không hợp lệ hoặc đã hết hạn");
             }
+            Long userId = jwtService.extractUserId(token);
+            if (userId == null) {
+                userId = userRepository.findByUsername(username)
+                        .orElseThrow(() -> new MessagingException("Không tìm thấy người dùng"))
+                        .getId();
+            }
             UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
-                    user.getUsername(), null, user.getAuthorities());
+                    String.valueOf(userId), null, user.getAuthorities());
             accessor.setUser(auth);
         }
         return message;

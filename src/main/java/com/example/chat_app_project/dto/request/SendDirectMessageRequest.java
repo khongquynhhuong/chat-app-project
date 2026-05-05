@@ -17,4 +17,8 @@ public class SendDirectMessageRequest {
 
     /** 0=text, mở rộng sau (image, video...) */
     private int messageType;
+
+    /** Id phía client để khớp tin optimistic với ACK WebSocket (tùy chọn). */
+    @Size(max = 128)
+    private String clientMessageId;
 }

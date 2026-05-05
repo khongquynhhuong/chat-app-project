@@ -5,19 +5,72 @@
 
 /** @returns {Promise<import('../domain/chat.js').ConversationPreview[]>} */
 export async function fetchConversations(_token) {
-  // TODO: GET /api/conversations (or /api/chats) — return list with peerUsername, title, lastMessage, unread
   throw new Error('REST chưa triển khai: fetchConversations — dùng state cục bộ + STOMP');
 }
 
 /**
- * @param {string} _token
- * @param {string} _peerUsername
- * @param {{ before?: string, limit?: number }} _page
- * @returns {Promise<import('../domain/chat.js').ChatMessage[]>}
+ * Hàm phụ trợ chuyển đổi status
  */
-export async function fetchMessageHistory(_token, _peerUsername, _page) {
-  // TODO: GET /api/dm/messages?peerUsername=&beforeMessageId=&limit=
-  throw new Error('REST chưa triển khai: fetchMessageHistory');
+function mapServerStatusToUi(serverStatus) {
+  switch (serverStatus) {
+    case 'READ':
+      return 'read';
+    case 'DELIVERED':
+      return 'delivered';
+    case 'SENT':
+    default:
+      return 'sent';
+  }
+}
+
+/**
+ * @param {string} token - JWT Token
+ * @param {string} peerUsername - Tên người nhận
+ * @param {string|null} beforeMessageId - ID của tin nhắn cũ nhất (nếu có)
+ * @param {string} currentUsername - Username của chính mình
+ * @return {Promise<Array>} - Danh sách tin nhắn đã được chuẩn hóa
+ */
+export async function fetchMessageHistory(token, peerUsername, beforeMessageId = null, currentUsername = '') {
+  // Đã sửa URL: bỏ khoảng trắng và dấu ngoặc nhọn thừa, thêm dấu / ở đầu nếu cần thiết (ví dụ: /api/dm/messages)
+  let url = `/api/dm/messages?peerUsername=${encodeURIComponent(peerUsername)}&limit=20`;
+
+  if (beforeMessageId) {
+    url += `&beforeMessageId=${encodeURIComponent(beforeMessageId)}`;
+  }
+
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Lỗi khi tải lịch sử tin nhắn: ${response.status} - ${errorText}`);
+  }
+
+  const data = await response.json();
+
+  const mappedMessages = data.map((msg) => {
+    const sender = String(msg.senderUsername || '').trim();
+    const current = String(currentUsername || '').trim();
+
+    return {
+      id: msg.messageId || msg.id,
+      peerUsername: msg.peerUsername || peerUsername,
+      content: msg.content,
+      sentAt: msg.createdAt || msg.sentAt || new Date().toISOString(),
+      direction: sender === current ? 'out' : 'in',
+      status: mapServerStatusToUi(msg.deliveryStatus),
+      clientMessageId: msg.clientMessageId,
+    };
+  });
+
+  mappedMessages.sort((a, b) => new Date(a.sentAt) - new Date(b.sentAt));
+
+  return mappedMessages;
 }
 
 /**
@@ -26,6 +79,5 @@ export async function fetchMessageHistory(_token, _peerUsername, _page) {
  * @returns {Promise<{ userId: number, username: string }[]>}
  */
 export async function searchUsers(_token, _query) {
-  // TODO: GET /api/users/search?q=
   throw new Error('REST chưa triển khai: searchUsers');
 }

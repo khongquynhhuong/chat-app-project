@@ -45,8 +45,8 @@ public class DirectMessageServiceImpl implements DirectMessageService {
     }
 
     @Override
-    public DirectMessageResponse send(String username, SendDirectMessageRequest request) {
-        User me = userRepository.findByUsername(username)
+    public DirectMessageResponse send(Long senderUserId, SendDirectMessageRequest request) {
+        User me = userRepository.findById(senderUserId)
                 .orElseThrow(() -> new RuntimeException("Người dùng hiện tại không tồn tại"));
         User peer = userRepository.findByUsername(requirePeerUsername(request.getPeerUsername()))
                 .orElseThrow(() -> new RuntimeException("Người nhận không tồn tại"));
@@ -69,8 +69,13 @@ public class DirectMessageServiceImpl implements DirectMessageService {
                 .build();
 
         messageRepository.save(msg);
-        DirectMessageResponse response = toResponse(msg, me.getUsername());
-        directMessageNotifier.notifyIncomingMessage(response, peer.getUsername());
+        DirectMessageResponse response = toResponse(
+                msg,
+                me.getUsername(),
+                peer.getUsername(),
+                request.getClientMessageId()
+        );
+        directMessageNotifier.notifyIncomingMessage(response, peer.getId());
         return response;
     }
 
@@ -95,7 +100,9 @@ public class DirectMessageServiceImpl implements DirectMessageService {
                 .sorted(Comparator.comparing(ChatMessage::getMessageId))
                 .map(message -> toResponse(
                         message,
-                        message.getSenderId().equals(me.getId()) ? me.getUsername() : peer.getUsername()
+                        message.getSenderId().equals(me.getId()) ? me.getUsername() : peer.getUsername(),
+                        null,
+                        null
                 ))
                 .collect(Collectors.toList());
     }
@@ -130,6 +137,15 @@ public class DirectMessageServiceImpl implements DirectMessageService {
     }
 
     private DirectMessageResponse toResponse(ChatMessage m, String senderUsername) {
+        return toResponse(m, senderUsername, null, null);
+    }
+
+    private DirectMessageResponse toResponse(
+            ChatMessage m,
+            String senderUsername,
+            String peerUsername,
+            String clientMessageId
+    ) {
         return DirectMessageResponse.builder()
                 .conversationId(m.getConversationId())
                 .messageId(m.getMessageId())
@@ -139,6 +155,8 @@ public class DirectMessageServiceImpl implements DirectMessageService {
                 .messageType(m.getMessageType())
                 .createdAt(m.getCreatedAt())
                 .deliveryStatus(MessageDeliveryStatus.fromCode(m.getDeliveryStatus()).name())
+                .peerUsername(peerUsername)
+                .clientMessageId(clientMessageId)
                 .build();
     }
 }

@@ -14,13 +14,13 @@ public class DirectMessageNotifier {
 
     private final SimpMessagingTemplate messagingTemplate;
 
-    /** Đẩy tin mới cho peer nhận. */
-    public void notifyIncomingMessage(DirectMessageResponse payload, String recipientUsername) {
-        messagingTemplate.convertAndSendToUser(recipientUsername, INCOMING_DESTINATION, payload);
+    /** Đẩy tin mới cho peer nhận (user destination theo id — khớp STOMP principal). */
+    public void notifyIncomingMessage(DirectMessageResponse payload, Long recipientId) {
+        messagingTemplate.convertAndSendToUser(String.valueOf(recipientId), INCOMING_DESTINATION, payload);
     }
 
     /** Trả ACK cho chính người gửi (đã lưu Cassandra thành công). */
-    public void notifySentAck(DirectMessageResponse payload, String senderUsername) {
-        messagingTemplate.convertAndSendToUser(senderUsername, SENT_ACK_DESTINATION, payload);
+    public void notifySentAck(DirectMessageResponse payload, Long senderId) {
+        messagingTemplate.convertAndSendToUser(String.valueOf(senderId), SENT_ACK_DESTINATION, payload);
     }
 }
