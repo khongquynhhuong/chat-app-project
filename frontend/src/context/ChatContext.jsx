@@ -4,6 +4,7 @@ import {
   useContext,
   useMemo,
   useReducer,
+  useEffect,
 } from 'react';
 import {
   newClientMessageId,
@@ -11,7 +12,7 @@ import {
   normalizeSentAck,
 } from '../domain/chat.js';
 import { useStompChat } from '../hooks/useStompChat.js';
-import { fetchMessageHistory } from '../services/chatRepository.js';
+import { fetchMessageHistory, fetchConversations } from '../services/chatRepository.js';
 
 const ChatContext = createContext(null);
 
@@ -214,6 +215,25 @@ function chatReducer(state, action) {
 
     case 'WS_BANNER':
       return { ...state, wsBanner: action.payload };
+
+    case 'LOAD_CONVERSATIONS_SUCCESS': {
+      const conversations = action.payload;
+      const newPeers = { ...state.peers };
+
+      conversations.forEach((conv) => {
+        const k = peerKey(conv.peerUsername);
+        newPeers[k] = {
+          ...newPeers[k],
+          peerUsername: conv.peerUsername,
+          title: conv.title,
+          lastPreview: conv.lastPreview,
+          lastAt: conv.lastAt,
+          unread: conv.unread,
+        };
+      });
+
+      return { ...state, peers: newPeers };
+    }
 
     case 'HISTORY_LOAD_START': {
       const key = peerKey(action.payload.peerUsername);
@@ -425,6 +445,22 @@ export function ChatProvider({ authUser, children }) {
     }
   }, [authUser.token, authUser.username, state.historyByPeer]);
 
+  const loadConversations = useCallback(async () => {
+    try {
+      const data = await fetchConversations(authUser.token);
+      dispatch({ type: 'LOAD_CONVERSATIONS_SUCCESS', payload: data });
+    } catch (error) {
+      console.error('Lỗi tải conversations:', error);
+      dispatch({ type: 'WS_BANNER', payload: 'Không thể tải danh sách cuộc trò chuyện' });
+    }
+  }, [authUser.token]);
+
+  useEffect(() => {
+    if (authUser?.token) {
+      loadConversations();
+    }
+  }, [authUser?.token, loadConversations]);
+
   const openChatWithPeer = useCallback((peerUsername) => {
     dispatch({ type: 'ENSURE_PEER', payload: peerUsername });
     dispatch({ type: 'SELECT_PEER', payload: peerUsername });
@@ -490,6 +526,7 @@ export function ChatProvider({ authUser, children }) {
         peerList,
         activeMessages,
         loadHistory,
+        loadConversations,
         selectPeer,
         ensurePeer,
         openChatWithPeer,
@@ -502,6 +539,7 @@ export function ChatProvider({ authUser, children }) {
         state,
         peerList,
         activeMessages,
+        loadConversations,
         selectPeer,
         ensurePeer,
         openChatWithPeer,

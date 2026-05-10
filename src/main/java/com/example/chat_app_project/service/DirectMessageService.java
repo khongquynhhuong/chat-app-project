@@ -2,6 +2,7 @@ package com.example.chat_app_project.service;
 
 import com.example.chat_app_project.dto.request.MarkDirectMessageReadRequest;
 import com.example.chat_app_project.dto.request.SendDirectMessageRequest;
+import com.example.chat_app_project.dto.response.ConversationPreviewResponse;
 import com.example.chat_app_project.dto.response.DirectMessageResponse;
 import com.example.chat_app_project.dto.response.OpenDirectChatResponse;
 
@@ -17,4 +18,6 @@ public interface DirectMessageService {
     List<DirectMessageResponse> listMessages(String username, String peerUsername, int limit, UUID beforeMessageId);
 
     void markRead(String username, MarkDirectMessageReadRequest request);
+
+    List<ConversationPreviewResponse> getRecentConversations(String username);
 }

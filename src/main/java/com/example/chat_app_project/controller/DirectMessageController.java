@@ -1,6 +1,7 @@
 package com.example.chat_app_project.controller;
 
 import com.example.chat_app_project.dto.request.MarkDirectMessageReadRequest;
+import com.example.chat_app_project.dto.response.ConversationPreviewResponse;
 import com.example.chat_app_project.dto.response.DirectMessageResponse;
 import com.example.chat_app_project.dto.response.OpenDirectChatResponse;
 import com.example.chat_app_project.service.DirectMessageService;
@@ -58,5 +59,12 @@ public class DirectMessageController {
     ) {
         directMessageService.markRead(principal.getUsername(), request);
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/recent-conversations")
+    public ResponseEntity<List<ConversationPreviewResponse>> getRecentConversations(
+            @AuthenticationPrincipal UserDetails principal
+    ) {
+        return ResponseEntity.ok(directMessageService.getRecentConversations(principal.getUsername()));
     }
 }

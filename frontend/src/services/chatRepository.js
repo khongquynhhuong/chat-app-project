@@ -4,8 +4,29 @@
  */
 
 /** @returns {Promise<import('../domain/chat.js').ConversationPreview[]>} */
-export async function fetchConversations(_token) {
-  throw new Error('REST chưa triển khai: fetchConversations — dùng state cục bộ + STOMP');
+export async function fetchConversations(token) {
+  const response = await fetch('/api/dm/recent-conversations', {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Lỗi khi tải danh sách trò chuyện: ${response.status} - ${errorText}`);
+  }
+
+  const data = await response.json();
+  
+  return data.map((conv) => ({
+    peerUsername: conv.peerUsername,
+    title: conv.title || conv.peerUsername,
+    lastPreview: conv.lastMessage || '',
+    lastAt: conv.lastAt || '',
+    unread: conv.unread || 0,
+  }));
 }
 
 /**

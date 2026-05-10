@@ -28,7 +28,7 @@ export function AppShell({ user, onLogout }) {
     : 'Danh sách bên trái hoặc thêm chat mới';
 
   const onSelectPeerMobile = (id) => {
-    selectPeer(id);
+    openChatWithPeer(id);
     setMobilePanel('chat');
   };
 
@@ -40,9 +40,8 @@ export function AppShell({ user, onLogout }) {
   return (
     <div className="flex h-full min-h-0 flex-col bg-tg-bg md:flex-row">
       <div
-        className={`h-full min-h-0 w-full shrink-0 md:flex md:w-80 ${
-          mobilePanel === 'list' ? 'flex' : 'hidden md:flex'
-        }`}
+        className={`h-full min-h-0 w-full shrink-0 md:flex md:w-80 ${mobilePanel === 'list' ? 'flex' : 'hidden md:flex'
+          }`}
       >
         <ChatSidebar
           user={user}
@@ -57,9 +56,8 @@ export function AppShell({ user, onLogout }) {
       </div>
 
       <section
-        className={`flex min-h-0 min-w-0 flex-1 flex-col bg-tg-panel ${
-          mobilePanel === 'chat' ? 'flex' : 'hidden md:flex'
-        }`}
+        className={`flex min-h-0 min-w-0 flex-1 flex-col bg-tg-panel ${mobilePanel === 'chat' ? 'flex' : 'hidden md:flex'
+          }`}
         aria-label="Khung trò chuyện"
       >
         <ChatHeader

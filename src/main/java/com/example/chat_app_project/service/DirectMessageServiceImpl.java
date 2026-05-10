@@ -4,14 +4,20 @@ import com.example.chat_app_project.dm.DirectConversationIds;
 import com.example.chat_app_project.dm.MessageDeliveryStatus;
 import com.example.chat_app_project.dto.request.MarkDirectMessageReadRequest;
 import com.example.chat_app_project.dto.request.SendDirectMessageRequest;
+import com.example.chat_app_project.dto.response.ConversationPreviewResponse;
 import com.example.chat_app_project.dto.response.DirectMessageResponse;
 import com.example.chat_app_project.dto.response.OpenDirectChatResponse;
 import com.example.chat_app_project.entity.ChatMessage;
 import com.example.chat_app_project.entity.User;
+import com.example.chat_app_project.entity.UserConversation;
 import com.example.chat_app_project.repository.MessageRepository;
+import com.example.chat_app_project.repository.UserConversationRepository;
 import com.example.chat_app_project.repository.UserRepository;
 import com.example.chat_app_project.websocket.DirectMessageNotifier;
 import com.datastax.oss.driver.api.core.uuid.Uuids;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -29,9 +35,11 @@ public class DirectMessageServiceImpl implements DirectMessageService {
 
     private final UserRepository userRepository;
     private final MessageRepository messageRepository;
+    private final UserConversationRepository userConversationRepository;
     private final DirectMessageNotifier directMessageNotifier;
 
     @Override
+    @Transactional
     public OpenDirectChatResponse openConversation(String username, String peerUsername) {
         User me = userRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("Người dùng hiện tại không tồn tại"));
@@ -41,10 +49,18 @@ public class DirectMessageServiceImpl implements DirectMessageService {
             throw new RuntimeException("Không thể mở hội thoại với chính mình");
         }
         UUID conversationId = DirectConversationIds.forPair(me.getId(), peer.getId());
+        
+        userConversationRepository.findByUserIdAndPeerId(me.getId(), peer.getId())
+                .ifPresent(conv -> {
+                    conv.setUnreadCount(0);
+                    userConversationRepository.save(conv);
+                });
+
         return new OpenDirectChatResponse(conversationId, peer.getUsername());
     }
 
     @Override
+    @Transactional
     public DirectMessageResponse send(Long senderUserId, SendDirectMessageRequest request) {
         User me = userRepository.findById(senderUserId)
                 .orElseThrow(() -> new RuntimeException("Người dùng hiện tại không tồn tại"));
@@ -69,6 +85,33 @@ public class DirectMessageServiceImpl implements DirectMessageService {
                 .build();
 
         messageRepository.save(msg);
+
+        String preview = request.getMessageType() == 0 ? request.getContent() : "[Hình ảnh/File]";
+        if (preview != null && preview.length() > 250) {
+            preview = preview.substring(0, 250) + "...";
+        }
+        
+        UserConversation myConv = userConversationRepository.findByUserIdAndPeerId(me.getId(), peer.getId())
+                .orElseGet(() -> UserConversation.builder()
+                        .user(me)
+                        .peer(peer)
+                        .conversationId(conversationId)
+                        .build());
+        myConv.setLastUpdated(now);
+        myConv.setLastMessagePreview("Bạn: " + preview);
+        userConversationRepository.save(myConv);
+
+        UserConversation peerConv = userConversationRepository.findByUserIdAndPeerId(peer.getId(), me.getId())
+                .orElseGet(() -> UserConversation.builder()
+                        .user(peer)
+                        .peer(me)
+                        .conversationId(conversationId)
+                        .build());
+        peerConv.setLastUpdated(now);
+        peerConv.setLastMessagePreview(preview);
+        peerConv.setUnreadCount(peerConv.getUnreadCount() + 1);
+        userConversationRepository.save(peerConv);
+
         DirectMessageResponse response = toResponse(
                 msg,
                 me.getUsername(),
@@ -91,6 +134,15 @@ public class DirectMessageServiceImpl implements DirectMessageService {
 
         UUID conversationId = DirectConversationIds.forPair(me.getId(), peer.getId());
         int safeLimit = Math.min(Math.max(limit, 1), MAX_LIMIT);
+
+        // Reset unread count since the user is viewing the chat history
+        if (beforeMessageId == null) {
+            userConversationRepository.findByUserIdAndPeerId(me.getId(), peer.getId())
+                    .ifPresent(conv -> {
+                        conv.setUnreadCount(0);
+                        userConversationRepository.save(conv);
+                    });
+        }
 
         List<ChatMessage> rows = beforeMessageId == null
                 ? messageRepository.findRecentMessages(conversationId, safeLimit)
@@ -127,6 +179,23 @@ public class DirectMessageServiceImpl implements DirectMessageService {
 
         msg.setDeliveryStatus(MessageDeliveryStatus.READ.getCode());
         messageRepository.save(msg);
+    }
+
+    @Override
+    public List<ConversationPreviewResponse> getRecentConversations(String username) {
+        User me = userRepository.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("Người dùng hiện tại không tồn tại"));
+        
+        List<UserConversation> conversations = userConversationRepository.findByUserIdOrderByLastUpdatedDesc(me.getId());
+        return conversations.stream()
+                .map(conv -> ConversationPreviewResponse.builder()
+                        .peerUsername(conv.getPeer().getUsername())
+                        .title(conv.getPeer().getUsername())
+                        .lastMessage(conv.getLastMessagePreview())
+                        .lastAt(conv.getLastUpdated())
+                        .unread(conv.getUnreadCount())
+                        .build())
+                .collect(Collectors.toList());
     }
 
     private String requirePeerUsername(String peerUsername) {
