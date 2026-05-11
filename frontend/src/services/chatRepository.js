@@ -99,6 +99,25 @@ export async function fetchMessageHistory(token, peerUsername, beforeMessageId =
  * @param {string} _query
  * @returns {Promise<{ userId: number, username: string }[]>}
  */
-export async function searchUsers(_token, _query) {
-  throw new Error('REST chưa triển khai: searchUsers');
+export async function searchUsers(token, query) {
+  if (!query || !query.trim()) {
+    return [];
+  }
+  
+  const url = `/api/users/search?q=${encodeURIComponent(query.trim())}`;
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Lỗi khi tìm kiếm người dùng: ${response.status} - ${errorText}`);
+  }
+
+  const data = await response.json();
+  return data;
 }

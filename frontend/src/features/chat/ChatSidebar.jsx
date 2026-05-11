@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { searchUsers } from '../../services/chatRepository.js';
 import {
   LogOut,
   Moon,
@@ -20,6 +21,33 @@ export function ChatSidebar({
 }) {
   const { theme, setTheme } = useTheme();
   const [searchText, setSearchText] = useState('');
+  const [globalUsers, setGlobalUsers] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+
+  useEffect(() => {
+    const q = searchText.trim();
+    if (!q) {
+      setGlobalUsers([]);
+      setIsSearching(false);
+      return;
+    }
+
+    setIsSearching(true);
+    const timer = setTimeout(() => {
+      const token = sessionStorage.getItem('chat_access_token');
+      searchUsers(token, q)
+        .then((data) => {
+          setGlobalUsers(data);
+          setIsSearching(false);
+        })
+        .catch((err) => {
+          console.error(err);
+          setIsSearching(false);
+        });
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [searchText]);
 
   const cycleTheme = () => {
     const order = ['system', 'light', 'dark'];
@@ -36,12 +64,7 @@ export function ChatSidebar({
       <Monitor className="h-5 w-5" />
     );
 
-  const openFromSearch = () => {
-    const username = searchText.trim();
-    if (!username) return;
-    onOpenNewChat(username);
-    setSearchText('');
-  };
+
 
   const filteredPeers = peerList.filter((p) => {
     const q = searchText.trim().toLowerCase();
@@ -104,12 +127,6 @@ export function ChatSidebar({
             type="search"
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                openFromSearch();
-              }
-            }}
             placeholder="Tìm kiếm"
             className="w-full rounded-lg border border-tg-border bg-tg-panel py-2 pl-9 pr-3 text-sm text-tg-text placeholder:text-tg-muted focus:border-tg-accent focus:outline-none focus:ring-2 focus:ring-tg-accent/25"
             aria-label="Tìm kiếm người dùng"
@@ -121,53 +138,103 @@ export function ChatSidebar({
         className="flex-1 overflow-y-auto"
         aria-label="Danh sách trò chuyện"
       >
-        {filteredPeers.length === 0 ? (
-          <p className="p-4 text-center text-sm text-tg-muted">
-            {searchText.trim()
-              ? ''
-              : 'Chưa có cuộc trò chuyện. Nhập username để bắt đầu.'}
-          </p>
-        ) : (
-          <ul className="divide-y divide-tg-border/50">
-            {filteredPeers.map((p) => {
-              const active = activePeerUsername === p.peerUsername;
-              return (
-                <li key={p.peerUsername}>
-                  <button
-                    type="button"
-                    onClick={() => onSelectPeer(p.peerUsername)}
-                    className={`flex w-full cursor-pointer items-start gap-3 px-3 py-3 text-left transition-colors duration-200 hover:bg-tg-border/30 ${
-                      active ? 'bg-tg-accent/10' : ''
-                    }`}
-                  >
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-tg-accent/15 text-sm font-semibold text-tg-accent">
-                      {String(p.peerUsername).slice(0, 2).toUpperCase()}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-baseline justify-between gap-2">
-                        <span className="truncate font-medium text-tg-text">
-                          {p.title}
-                        </span>
-                        {p.lastAt && (
-                          <span className="shrink-0 text-[0.65rem] text-tg-muted">
-                            {formatShortTime(p.lastAt)}
-                          </span>
-                        )}
+        {/* Local peers */}
+        {filteredPeers.length > 0 && (
+          <div className="mb-2">
+            {searchText.trim() && (
+              <h3 className="px-3 py-1 text-xs font-semibold text-tg-muted uppercase tracking-wider">
+                Trò chuyện
+              </h3>
+            )}
+            <ul className="divide-y divide-tg-border/50">
+              {filteredPeers.map((p) => {
+                const active = activePeerUsername === p.peerUsername;
+                return (
+                  <li key={p.peerUsername}>
+                    <button
+                      type="button"
+                      onClick={() => onSelectPeer(p.peerUsername)}
+                      className={`flex w-full cursor-pointer items-start gap-3 px-3 py-3 text-left transition-colors duration-200 hover:bg-tg-border/30 ${
+                        active ? 'bg-tg-accent/10' : ''
+                      }`}
+                    >
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-tg-accent/15 text-sm font-semibold text-tg-accent">
+                        {String(p.peerUsername).slice(0, 2).toUpperCase()}
                       </div>
-                      <p className="truncate text-sm text-tg-muted">
-                        {p.lastPreview || '—'}
-                      </p>
-                    </div>
-                    {p.unread > 0 && (
-                      <span className="mt-1 flex h-5 min-w-[1.25rem] shrink-0 items-center justify-center rounded-full bg-tg-accent px-1 text-[0.65rem] font-bold text-white">
-                        {p.unread > 99 ? '99+' : p.unread}
-                      </span>
-                    )}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-baseline justify-between gap-2">
+                          <span className="truncate font-medium text-tg-text">
+                            {p.title}
+                          </span>
+                          {p.lastAt && (
+                            <span className="shrink-0 text-[0.65rem] text-tg-muted">
+                              {formatShortTime(p.lastAt)}
+                            </span>
+                          )}
+                        </div>
+                        <p className="truncate text-sm text-tg-muted">
+                          {p.lastPreview || '—'}
+                        </p>
+                      </div>
+                      {p.unread > 0 && (
+                        <span className="mt-1 flex h-5 min-w-[1.25rem] shrink-0 items-center justify-center rounded-full bg-tg-accent px-1 text-[0.65rem] font-bold text-white">
+                          {p.unread > 99 ? '99+' : p.unread}
+                        </span>
+                      )}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
+
+        {/* Global users */}
+        {searchText.trim() && (
+          <div className="mb-2">
+            <h3 className="px-3 py-1 text-xs font-semibold text-tg-muted uppercase tracking-wider border-t border-tg-border pt-2 mt-1">
+              Tìm kiếm toàn cầu
+            </h3>
+            {isSearching ? (
+              <p className="p-3 text-sm text-tg-muted text-center">Đang tìm kiếm...</p>
+            ) : globalUsers.length > 0 ? (
+              <ul className="divide-y divide-tg-border/50">
+                {globalUsers.map((u) => {
+                  // Hide if already in filteredPeers
+                  if (filteredPeers.some((p) => p.peerUsername === u.username)) return null;
+                  return (
+                    <li key={u.userId}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onOpenNewChat(u.username);
+                          setSearchText('');
+                        }}
+                        className="flex w-full cursor-pointer items-center gap-3 px-3 py-3 text-left transition-colors duration-200 hover:bg-tg-border/30"
+                      >
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-500/15 text-sm font-semibold text-indigo-500">
+                          {String(u.username).slice(0, 2).toUpperCase()}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <span className="truncate font-medium text-tg-text">
+                            {u.username}
+                          </span>
+                        </div>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <p className="p-3 text-sm text-tg-muted text-center">Không tìm thấy ai</p>
+            )}
+          </div>
+        )}
+
+        {!searchText.trim() && filteredPeers.length === 0 && (
+           <p className="p-4 text-center text-sm text-tg-muted">
+             Chưa có cuộc trò chuyện. Tìm kiếm username để bắt đầu.
+           </p>
         )}
       </nav>
     </aside>
