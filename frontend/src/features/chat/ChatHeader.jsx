@@ -1,4 +1,4 @@
-import { ArrowLeft, User } from 'lucide-react';
+import { ArrowLeft, PanelRight, User } from 'lucide-react';
 import { ConnectionBadge } from './ConnectionBadge.jsx';
 
 export function ChatHeader({
@@ -8,6 +8,8 @@ export function ChatHeader({
   lastError,
   showBack,
   onBack,
+  showGroupInfo = false,
+  onOpenGroupInfo,
 }) {
   return (
     <header className="flex h-14 shrink-0 items-center gap-3 border-b border-tg-border bg-tg-panel px-3 md:px-4">
@@ -34,6 +36,16 @@ export function ChatHeader({
         )}
       </div>
       <ConnectionBadge connected={connected} lastError={lastError} />
+      {showGroupInfo && onOpenGroupInfo ? (
+        <button
+          type="button"
+          onClick={onOpenGroupInfo}
+          className="inline-flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full text-tg-muted transition-colors hover:bg-tg-sidebar hover:text-tg-text"
+          aria-label="Thông tin nhóm"
+        >
+          <PanelRight className="h-5 w-5" />
+        </button>
+      ) : null}
     </header>
   );
 }

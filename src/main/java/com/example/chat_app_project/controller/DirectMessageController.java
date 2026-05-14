@@ -1,6 +1,5 @@
 package com.example.chat_app_project.controller;
 
-import com.example.chat_app_project.dto.request.MarkDirectMessageReadRequest;
 import com.example.chat_app_project.dto.response.ConversationPreviewResponse;
 import com.example.chat_app_project.dto.response.DirectMessageResponse;
 import com.example.chat_app_project.dto.response.OpenDirectChatResponse;
@@ -50,15 +49,6 @@ public class DirectMessageController {
         return ResponseEntity.ok(
                 directMessageService.listMessages(principal.getUsername(), peerUsername, limit, beforeMessageId)
         );
-    }
-
-    @PostMapping("/messages/read")
-    public ResponseEntity<Void> markRead(
-            @AuthenticationPrincipal UserDetails principal,
-            @Valid @RequestBody MarkDirectMessageReadRequest request
-    ) {
-        directMessageService.markRead(principal.getUsername(), request);
-        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/recent-conversations")

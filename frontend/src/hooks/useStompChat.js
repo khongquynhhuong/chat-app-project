@@ -9,6 +9,9 @@ export function useStompChat(token, {
   onConnected,
   onIncoming,
   onSentAck,
+  onGroupIncoming,
+  onGroupSentAck,
+  onGroupDeleted,
   onWsError,
   onSystem,
 }) {
@@ -19,6 +22,9 @@ export function useStompChat(token, {
     onConnected,
     onIncoming,
     onSentAck,
+    onGroupIncoming,
+    onGroupSentAck,
+    onGroupDeleted,
     onWsError,
     onSystem,
   });
@@ -26,6 +32,9 @@ export function useStompChat(token, {
     onConnected,
     onIncoming,
     onSentAck,
+    onGroupIncoming,
+    onGroupSentAck,
+    onGroupDeleted,
     onWsError,
     onSystem,
   };
@@ -62,6 +71,27 @@ export function useStompChat(token, {
             handlersRef.current.onSentAck?.(JSON.parse(message.body));
           } catch {
             handlersRef.current.onSentAck?.({ raw: message.body });
+          }
+        });
+        client.subscribe('/user/queue/group', (message) => {
+          try {
+            handlersRef.current.onGroupIncoming?.(JSON.parse(message.body));
+          } catch {
+            handlersRef.current.onGroupIncoming?.({ raw: message.body });
+          }
+        });
+        client.subscribe('/user/queue/group.sent', (message) => {
+          try {
+            handlersRef.current.onGroupSentAck?.(JSON.parse(message.body));
+          } catch {
+            handlersRef.current.onGroupSentAck?.({ raw: message.body });
+          }
+        });
+        client.subscribe('/user/queue/group.deleted', (message) => {
+          try {
+            handlersRef.current.onGroupDeleted?.(JSON.parse(message.body));
+          } catch {
+            handlersRef.current.onGroupDeleted?.({ raw: message.body });
           }
         });
         client.subscribe('/user/queue/errors', (message) => {

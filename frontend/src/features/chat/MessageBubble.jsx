@@ -7,10 +7,24 @@ export function MessageBubble({ message }) {
 
   return (
     <div
-      className={`flex w-full ${isOut ? 'justify-end' : 'justify-start'}`}
+      className={`flex w-full ${isOut ? 'justify-end' : 'justify-start'} mb-1`}
     >
-      <div
-        className={`max-w-[min(100%,28rem)] rounded-2xl px-3 py-2 shadow-bubble transition-colors duration-200 ${
+      {!isOut && message.senderUsername && (
+        <div
+          className="mr-2 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-500 text-xs font-semibold text-white shadow-sm mt-auto"
+          title={message.senderUsername}
+        >
+          {message.senderUsername.charAt(0).toUpperCase()}
+        </div>
+      )}
+      <div className={`flex max-w-[min(100%,28rem)] flex-col`}>
+        {!isOut && message.senderUsername && (
+          <span className="mb-0.5 ml-1 text-xs font-medium text-gray-500">
+            {message.senderUsername}
+          </span>
+        )}
+        <div
+          className={`rounded-2xl px-3 py-2 shadow-bubble transition-colors duration-200 ${
           isOut
             ? 'rounded-br-md bg-tg-bubble-out text-tg-text'
             : 'rounded-bl-md bg-tg-bubble-in text-tg-text ring-1 ring-tg-border/60'
@@ -37,7 +51,8 @@ export function MessageBubble({ message }) {
         </div>
       </div>
     </div>
-  );
+  </div>
+);
 }
 
 function formatTime(iso) {

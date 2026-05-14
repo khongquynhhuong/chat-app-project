@@ -113,6 +113,44 @@ export function normalizeSentAck(payload) {
   return { peerUsername, clientMessageId, serverId, sentAt };
 }
 
+export function normalizeIncomingGroup(payload, currentUsername) {
+  if (!payload || typeof payload !== 'object') {
+    return {
+      groupId: null,
+      senderUsername: '',
+      content: String(payload),
+      sentAt: new Date().toISOString(),
+      serverId: null,
+    };
+  }
+  return {
+    groupId: payload.groupId != null ? Number(payload.groupId) : null,
+    senderUsername: normalizeUsername(str(payload.senderUsername) || ''),
+    content: str(payload.content) ?? '',
+    sentAt: str(payload.createdAt) ?? str(payload.sentAt) ?? new Date().toISOString(),
+    serverId: payload.messageId != null ? String(payload.messageId) : (payload.id != null ? String(payload.id) : null),
+    direction:
+      normalizeUsername(str(payload.senderUsername) || '') === normalizeUsername(currentUsername) ? 'out' : 'in',
+  };
+}
+
+export function normalizeGroupSentAck(payload) {
+  if (!payload || typeof payload !== 'object') {
+    return {
+      groupId: null,
+      clientMessageId: null,
+      serverId: null,
+      sentAt: null,
+    };
+  }
+  return {
+    groupId: payload.groupId != null ? Number(payload.groupId) : null,
+    clientMessageId: str(payload.clientMessageId) ?? null,
+    serverId: payload.messageId != null ? String(payload.messageId) : (payload.id != null ? String(payload.id) : null),
+    sentAt: str(payload.createdAt) ?? str(payload.sentAt) ?? null,
+  };
+}
+
 function str(v) {
   if (v == null) return null;
   return typeof v === 'string' ? v : String(v);

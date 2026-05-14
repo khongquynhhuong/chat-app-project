@@ -2,7 +2,6 @@ package com.example.chat_app_project.service;
 
 import com.example.chat_app_project.dm.DirectConversationIds;
 import com.example.chat_app_project.dm.MessageDeliveryStatus;
-import com.example.chat_app_project.dto.request.MarkDirectMessageReadRequest;
 import com.example.chat_app_project.dto.request.SendDirectMessageRequest;
 import com.example.chat_app_project.dto.response.ConversationPreviewResponse;
 import com.example.chat_app_project.dto.response.DirectMessageResponse;
@@ -157,28 +156,6 @@ public class DirectMessageServiceImpl implements DirectMessageService {
                         null
                 ))
                 .collect(Collectors.toList());
-    }
-
-    @Override
-    public void markRead(String username, MarkDirectMessageReadRequest request) {
-        User me = userRepository.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("Người dùng hiện tại không tồn tại"));
-        User peer = userRepository.findByUsername(requirePeerUsername(request.getPeerUsername()))
-                .orElseThrow(() -> new RuntimeException("Đối phương không tồn tại"));
-
-        UUID conversationId = DirectConversationIds.forPair(me.getId(), peer.getId());
-        ChatMessage msg = messageRepository.findByConversationIdAndMessageId(conversationId, request.getMessageId())
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy tin nhắn"));
-
-        if (!msg.getConversationId().equals(conversationId)) {
-            throw new RuntimeException("Tin nhắn không thuộc cuộc hội thoại này");
-        }
-        if (msg.getSenderId().equals(me.getId())) {
-            throw new RuntimeException("Chỉ người nhận mới đánh dấu đã đọc");
-        }
-
-        msg.setDeliveryStatus(MessageDeliveryStatus.READ.getCode());
-        messageRepository.save(msg);
     }
 
     @Override
