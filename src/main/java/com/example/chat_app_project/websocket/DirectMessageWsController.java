@@ -1,8 +1,11 @@
 package com.example.chat_app_project.websocket;
 
 import com.example.chat_app_project.dto.request.SendDirectMessageRequest;
+import com.example.chat_app_project.dto.request.SendGroupMessageRequest;
 import com.example.chat_app_project.dto.response.DirectMessageResponse;
+import com.example.chat_app_project.dto.response.GroupMessageResponse;
 import com.example.chat_app_project.service.DirectMessageService;
+import com.example.chat_app_project.service.GroupChatService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.handler.annotation.MessageExceptionHandler;
@@ -21,7 +24,9 @@ import java.util.Map;
 public class DirectMessageWsController {
 
     private final DirectMessageService directMessageService;
+    private final GroupChatService groupChatService;
     private final DirectMessageNotifier directMessageNotifier;
+    private final GroupMessageNotifier groupMessageNotifier;
 
     /**
      * Client gửi tới /app/dm/send với payload {@code {"peerUsername":"bob","content":"...","messageType":0}}.
@@ -40,8 +45,22 @@ public class DirectMessageWsController {
         } catch (NumberFormatException e) {
             throw new RuntimeException("Principal STOMP không hợp lệ (cần user id)");
         }
-        DirectMessageResponse sent = directMessageService.send(senderId, request);
-        directMessageNotifier.notifySentAck(sent, senderId);
+        
+        if (request.getGroupId() != null) {
+            SendGroupMessageRequest groupReq = new SendGroupMessageRequest();
+            groupReq.setGroupId(request.getGroupId());
+            groupReq.setContent(request.getContent());
+            groupReq.setMessageType(request.getMessageType());
+            groupReq.setClientMessageId(request.getClientMessageId());
+            GroupMessageResponse sent = groupChatService.send(senderId, groupReq);
+            groupMessageNotifier.notifySentAck(sent, senderId);
+        } else {
+            if (request.getPeerUsername() == null || request.getPeerUsername().isBlank()) {
+                throw new RuntimeException("peerUsername hoặc groupId không được trống");
+            }
+            DirectMessageResponse sent = directMessageService.send(senderId, request);
+            directMessageNotifier.notifySentAck(sent, senderId);
+        }
     }
 
     @MessageExceptionHandler(RuntimeException.class)

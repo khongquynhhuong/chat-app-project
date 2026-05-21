@@ -41,6 +41,7 @@ function writeMutedIds(set) {
  * @param {(id: number) => Promise<void>} props.onLeaveGroup
  * @param {(id: number, name: string) => Promise<void>} props.onRenameGroup
  * @param {(id: number, members: string[]) => Promise<void>} props.onAddMembers
+ * @param {(id: number, username: string) => Promise<void>} props.onRemoveMember
  */
 export function GroupInfoDrawer({
   open,
@@ -54,6 +55,7 @@ export function GroupInfoDrawer({
   onDeleteGroup,
   onRenameGroup,
   onAddMembers,
+  onRemoveMember,
 }) {
   const [info, setInfo] = useState(null);
   const [loadError, setLoadError] = useState(null);
@@ -305,6 +307,24 @@ export function GroupInfoDrawer({
                     <p className="text-xs text-gray-400">member</p>
                   )}
                 </div>
+                {isOwner && uname !== currentUsername && (
+                  <button
+                    type="button"
+                    title="Xóa khỏi nhóm"
+                    onClick={() => {
+                      if (window.confirm(`Bạn có chắc chắn muốn xóa ${uname} khỏi nhóm?`)) {
+                        setSaving(true);
+                        onRemoveMember(groupId, uname)
+                          .then(() => load())
+                          .catch(console.error)
+                          .finally(() => setSaving(false));
+                      }
+                    }}
+                    className="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-red-50 hover:text-red-500"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                )}
               </li>
             ))}
           </ul>

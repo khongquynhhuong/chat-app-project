@@ -5,6 +5,7 @@ import { ChatHeader } from './ChatHeader.jsx';
 import { MessageList } from './MessageList.jsx';
 import { Composer } from './Composer.jsx';
 import { GroupInfoDrawer } from './GroupInfoDrawer.jsx';
+import { removeGroupMember } from '../../services/chatRepository.js';
 
 export function AppShell({ user, onLogout }) {
   const {
@@ -124,6 +125,9 @@ export function AppShell({ user, onLogout }) {
         }}
         onRenameGroup={(id, name) => renameGroupChat(id, name)}
         onAddMembers={(id, members) => addGroupMembersToGroup(id, members)}
+        onRemoveMember={async (id, memberUsername) => {
+          await removeGroupMember(user.token, id, memberUsername);
+        }}
       />
     </div>
   );

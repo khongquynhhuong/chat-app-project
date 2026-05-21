@@ -1,7 +1,7 @@
 package com.example.chat_app_project.dm;
 
 /**
- * Trạng thái tin nhắn 1-1 (theo YEU_CAU_NGHIEP_VU.md): Sent → Delivered → Read.
+ * Trạng thái tin nhắn 1-1: Sent → Delivered → Read.
  */
 public enum MessageDeliveryStatus {
     SENT(0),

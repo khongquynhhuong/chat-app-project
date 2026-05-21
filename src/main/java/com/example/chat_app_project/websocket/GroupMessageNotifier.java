@@ -8,8 +8,8 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 public class GroupMessageNotifier {
-    private static final String INCOMING_DESTINATION = "/queue/group";
-    private static final String SENT_ACK_DESTINATION = "/queue/group.sent";
+    private static final String INCOMING_DESTINATION = "/queue/dm";
+    private static final String SENT_ACK_DESTINATION = "/queue/dm.sent";
     private static final String GROUP_DELETED_DESTINATION = "/queue/group.deleted";
 
     private final SimpMessagingTemplate messagingTemplate;

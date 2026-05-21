@@ -7,9 +7,10 @@ import lombok.Data;
 @Data
 public class SendDirectMessageRequest {
 
-    @NotBlank
     @Size(max = 100)
     private String peerUsername;
+
+    private Long groupId;
 
     @NotBlank
     @Size(max = 8000)

@@ -261,7 +261,7 @@ export function ChatProvider({ authUser, children }) {
       return;
     }
     if (String(key).startsWith('group:')) {
-      client.publish({ destination: '/app/group/send', headers: { 'content-type': 'application/json;charset=UTF-8' }, body: JSON.stringify({ groupId: Number(String(key).slice(6)), content, messageType: 0, clientMessageId: id }) });
+      client.publish({ destination: '/app/dm/send', headers: { 'content-type': 'application/json;charset=UTF-8' }, body: JSON.stringify({ groupId: Number(String(key).slice(6)), content, messageType: 0, clientMessageId: id }) });
     } else {
       client.publish({ destination: '/app/dm/send', headers: { 'content-type': 'application/json;charset=UTF-8' }, body: JSON.stringify({ peerUsername: String(key).slice(3), content, messageType: 0, clientMessageId: id }) });
     }

@@ -20,7 +20,7 @@ public interface GroupChatService {
 
     GroupInfoResponse getGroup(String username, Long groupId);
 
-    void removeMember(String username, Long groupId, Long memberUserId);
+    void removeMember(String username, Long groupId, String memberUsername);
 
     void leaveGroup(String username, Long groupId);
 

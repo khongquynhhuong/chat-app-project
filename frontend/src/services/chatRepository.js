@@ -245,6 +245,20 @@ export async function leaveGroup(token, groupId) {
   }
 }
 
+export async function removeGroupMember(token, groupId, memberUsername) {
+  const response = await fetch(`/api/groups/${encodeURIComponent(groupId)}/members/${encodeURIComponent(memberUsername)}`, {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+  });
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Không xóa được thành viên: ${response.status} - ${errorText}`);
+  }
+}
+
 /**
  * @param {string} _token
  * @param {string} _query

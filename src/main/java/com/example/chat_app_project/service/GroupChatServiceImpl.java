@@ -12,16 +12,17 @@ import com.example.chat_app_project.dto.response.GroupMessageResponse;
 import com.example.chat_app_project.entity.ChatGroup;
 import com.example.chat_app_project.entity.ChatGroupMember;
 import com.example.chat_app_project.entity.GroupConversation;
-import com.example.chat_app_project.entity.GroupInboxMessage;
+import com.example.chat_app_project.entity.GroupChatMessage;
 import com.example.chat_app_project.entity.User;
 import com.example.chat_app_project.repository.ChatGroupMemberRepository;
 import com.example.chat_app_project.repository.ChatGroupRepository;
 import com.example.chat_app_project.repository.GroupConversationRepository;
-import com.example.chat_app_project.repository.GroupInboxMessageRepository;
+import com.example.chat_app_project.repository.GroupChatMessageRepository;
 import com.example.chat_app_project.repository.UserRepository;
 import com.example.chat_app_project.websocket.GroupMessageNotifier;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Slice;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -44,7 +45,7 @@ public class GroupChatServiceImpl implements GroupChatService {
     private final ChatGroupRepository chatGroupRepository;
     private final ChatGroupMemberRepository chatGroupMemberRepository;
     private final GroupConversationRepository groupConversationRepository;
-    private final GroupInboxMessageRepository groupInboxMessageRepository;
+    private final GroupChatMessageRepository groupChatMessageRepository;
     private final GroupMessageNotifier groupMessageNotifier;
 
     @Override
@@ -163,18 +164,21 @@ public class GroupChatServiceImpl implements GroupChatService {
 
     @Override
     @Transactional
-    public void removeMember(String username, Long groupId, Long memberUserId) {
+    public void removeMember(String username, Long groupId, String memberUsername) {
         User me = requireUser(username);
         ChatGroup group = requireGroup(groupId);
         requireOwner(me, group);
-        if (group.getOwner().getId().equals(memberUserId)) {
+        
+        User targetUser = requireUser(memberUsername);
+        
+        if (group.getOwner().getId().equals(targetUser.getId())) {
             throw new RuntimeException("Không thể xóa chủ nhóm");
         }
-        ChatGroupMember member = chatGroupMemberRepository.findByGroupIdAndUserId(groupId, memberUserId)
+        ChatGroupMember member = chatGroupMemberRepository.findByGroupIdAndUserId(groupId, targetUser.getId())
                 .orElseThrow(() -> new RuntimeException("Thành viên không tồn tại trong nhóm"));
         member.setLeftAt(Instant.now());
         chatGroupMemberRepository.save(member);
-        groupConversationRepository.findByUserIdAndGroupId(memberUserId, groupId)
+        groupConversationRepository.findByUserIdAndGroupId(targetUser.getId(), groupId)
                 .ifPresent(groupConversationRepository::delete);
     }
 
@@ -215,9 +219,9 @@ public class GroupChatServiceImpl implements GroupChatService {
         requireActiveMember(groupId, me.getId());
         int safeLimit = Math.min(Math.max(limit, 1), MAX_LIMIT);
 
-        List<GroupInboxMessage> messages;
+        Slice<GroupChatMessage> slice;
         if (beforeMessageId == null) {
-            messages = groupInboxMessageRepository.findByUserIdAndGroupIdOrderByCreatedAtDesc(
+            slice = groupChatMessageRepository.findByUserIdAndGroupId(
                     me.getId(),
                     groupId,
                     PageRequest.of(0, safeLimit)
@@ -227,18 +231,16 @@ public class GroupChatServiceImpl implements GroupChatService {
                 groupConversationRepository.save(conv);
             });
         } else {
-            GroupInboxMessage before = groupInboxMessageRepository
-                    .findByUserIdAndGroupIdAndMessageId(me.getId(), groupId, beforeMessageId)
-                    .orElseThrow(() -> new RuntimeException("beforeMessageId không hợp lệ"));
-            messages = groupInboxMessageRepository.findByUserIdAndGroupIdAndCreatedAtBeforeOrderByCreatedAtDesc(
+            slice = groupChatMessageRepository.findByUserIdAndGroupIdAndMessageIdLessThan(
                     me.getId(),
                     groupId,
-                    before.getCreatedAt(),
+                    beforeMessageId,
                     PageRequest.of(0, safeLimit)
             );
         }
 
-        messages.sort(Comparator.comparing(GroupInboxMessage::getCreatedAt));
+        List<GroupChatMessage> messages = new ArrayList<>(slice.getContent());
+        messages.sort(Comparator.comparing(GroupChatMessage::getMessageId));
         return messages.stream().map(this::toMessageResponse).toList();
     }
 
@@ -261,19 +263,20 @@ public class GroupChatServiceImpl implements GroupChatService {
             preview = preview.substring(0, 250) + "...";
         }
 
+        List<GroupChatMessage> cassandraMessages = new ArrayList<>();
+
         for (ChatGroupMember member : members) {
-            GroupInboxMessage inbox = GroupInboxMessage.builder()
-                    .user(member.getUser())
-                    .group(group)
+            GroupChatMessage chatMsg = GroupChatMessage.builder()
+                    .userId(member.getUser().getId())
+                    .groupId(group.getId())
                     .messageId(messageId)
-                    .conversationId(group.getConversationId())
                     .senderId(sender.getId())
                     .content(request.getContent())
                     .messageType(request.getMessageType())
                     .createdAt(now)
                     .deliveryStatus(MessageDeliveryStatus.SENT.getCode())
                     .build();
-            groupInboxMessageRepository.save(inbox);
+            cassandraMessages.add(chatMsg);
 
             GroupConversation conv = groupConversationRepository.findByUserIdAndGroupId(member.getUser().getId(), group.getId())
                     .orElseGet(() -> GroupConversation.builder()
@@ -290,6 +293,8 @@ public class GroupChatServiceImpl implements GroupChatService {
             }
             groupConversationRepository.save(conv);
         }
+        
+        groupChatMessageRepository.saveAll(cassandraMessages);
 
         GroupMessageResponse response = GroupMessageResponse.builder()
                 .groupId(group.getId())
@@ -319,24 +324,33 @@ public class GroupChatServiceImpl implements GroupChatService {
         ChatGroup group = requireGroup(groupId);
         requireOwner(me, group);
 
-        List<ChatGroupMember> members = chatGroupMemberRepository.findByGroupIdAndLeftAtIsNull(groupId);
+        List<ChatGroupMember> activeMembers = chatGroupMemberRepository.findByGroupIdAndLeftAtIsNull(groupId);
+        List<ChatGroupMember> allMembers = chatGroupMemberRepository.findByGroupId(groupId);
 
-        groupInboxMessageRepository.deleteByGroupId(groupId);
+        // Delete Cassandra partitions for all users who ever joined
+        for (ChatGroupMember member : allMembers) {
+            groupChatMessageRepository.deleteByUserIdAndGroupId(member.getUser().getId(), groupId);
+        }
+
         groupConversationRepository.deleteByGroupId(groupId);
         chatGroupMemberRepository.deleteByGroupId(groupId);
         chatGroupRepository.delete(group);
 
-        for (ChatGroupMember member : members) {
+        for (ChatGroupMember member : activeMembers) {
             groupMessageNotifier.notifyGroupDeleted(groupId, member.getUser().getId());
         }
     }
 
-    private GroupMessageResponse toMessageResponse(GroupInboxMessage message) {
+    private GroupMessageResponse toMessageResponse(GroupChatMessage message) {
         User sender = userRepository.findById(message.getSenderId())
                 .orElseThrow(() -> new RuntimeException("Người gửi không tồn tại"));
+        
+        // Cần lấy thông tin conversationId của nhóm để trả về client
+        ChatGroup group = requireGroup(message.getGroupId());
+
         return GroupMessageResponse.builder()
-                .groupId(message.getGroup().getId())
-                .conversationId(message.getConversationId())
+                .groupId(message.getGroupId())
+                .conversationId(group.getConversationId())
                 .messageId(message.getMessageId())
                 .senderId(message.getSenderId())
                 .senderUsername(sender.getUsername())

@@ -23,14 +23,19 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 import java.util.UUID;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 @RestController
 @RequestMapping("/api/dm")
 @RequiredArgsConstructor
 @Validated
+@Tag(name = "Direct Messaging", description = "Endpoints for 1-to-1 direct messaging and conversations")
 public class DirectMessageController {
 
     private final DirectMessageService directMessageService;
 
+    @Operation(summary = "Open Conversation", description = "Open or initialize a 1-to-1 conversation with a peer")
     @GetMapping("/conversation")
     public ResponseEntity<OpenDirectChatResponse> openConversation(
             @AuthenticationPrincipal UserDetails principal,
@@ -39,6 +44,7 @@ public class DirectMessageController {
         return ResponseEntity.ok(directMessageService.openConversation(principal.getUsername(), peerUsername));
     }
 
+    @Operation(summary = "List Messages", description = "Retrieve a list of historical messages with a specific peer")
     @GetMapping("/messages")
     public ResponseEntity<List<DirectMessageResponse>> list(
             @AuthenticationPrincipal UserDetails principal,
@@ -51,6 +57,7 @@ public class DirectMessageController {
         );
     }
 
+    @Operation(summary = "Get Recent Conversations", description = "Retrieve a list of recent direct conversations for the authenticated user")
     @GetMapping("/recent-conversations")
     public ResponseEntity<List<ConversationPreviewResponse>> getRecentConversations(
             @AuthenticationPrincipal UserDetails principal

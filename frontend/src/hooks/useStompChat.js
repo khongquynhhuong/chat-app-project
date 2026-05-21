@@ -61,30 +61,26 @@ export function useStompChat(token, {
         handlersRef.current.onConnected?.();
         client.subscribe('/user/queue/dm', (message) => {
           try {
-            handlersRef.current.onIncoming?.(JSON.parse(message.body));
+            const parsed = JSON.parse(message.body);
+            if (parsed.groupId) {
+              handlersRef.current.onGroupIncoming?.(parsed);
+            } else {
+              handlersRef.current.onIncoming?.(parsed);
+            }
           } catch {
             handlersRef.current.onIncoming?.({ raw: message.body });
           }
         });
         client.subscribe('/user/queue/dm.sent', (message) => {
           try {
-            handlersRef.current.onSentAck?.(JSON.parse(message.body));
+            const parsed = JSON.parse(message.body);
+            if (parsed.groupId) {
+              handlersRef.current.onGroupSentAck?.(parsed);
+            } else {
+              handlersRef.current.onSentAck?.(parsed);
+            }
           } catch {
             handlersRef.current.onSentAck?.({ raw: message.body });
-          }
-        });
-        client.subscribe('/user/queue/group', (message) => {
-          try {
-            handlersRef.current.onGroupIncoming?.(JSON.parse(message.body));
-          } catch {
-            handlersRef.current.onGroupIncoming?.({ raw: message.body });
-          }
-        });
-        client.subscribe('/user/queue/group.sent', (message) => {
-          try {
-            handlersRef.current.onGroupSentAck?.(JSON.parse(message.body));
-          } catch {
-            handlersRef.current.onGroupSentAck?.({ raw: message.body });
           }
         });
         client.subscribe('/user/queue/group.deleted', (message) => {

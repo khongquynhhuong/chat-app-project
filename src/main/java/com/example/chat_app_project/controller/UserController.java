@@ -13,12 +13,17 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 @RestController
 @RequestMapping("/api/users")
 @RequiredArgsConstructor
+@Tag(name = "User Management", description = "Endpoints for user search and management")
 public class UserController {
     private final UserService userService;
 
+    @Operation(summary = "Search Users", description = "Search for users by username or name")
     @GetMapping("/search")
     public ResponseEntity<List<UserSearchResponse>> searchUsers (
             @AuthenticationPrincipal UserDetails principal,
